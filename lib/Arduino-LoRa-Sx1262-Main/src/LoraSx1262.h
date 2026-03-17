@@ -66,37 +66,38 @@ typedef union
 	uint16_t Value;
 } RadioError_t;
 
-class LoraSx1262 {
+class LoraSx1262 
+{
   public:
-    bool begin();
+    bool begin(uint32_t frequencyInHz, uint8_t bandwidth, uint8_t codingRate, uint8_t spreadingFactor);
     bool sanityCheck(); /*Returns true if we have an active SPI communication with the radio*/
     void transmit(byte* data, int dataLen);
     int lora_receive_async(byte* buff, int buffMaxLen); /*Checks to see if a lora packet was received yet, returns the packet if available*/
     int lora_receive_blocking(byte* buff, int buffMaxLen, uint32_t timeout); /*Waits until a packet is received, with an optional timeout*/
 
     //Radio configuration (optional)
-    bool configSetPreset(int preset);
-    bool configSetFrequency(long frequencyInHz);
-    bool configSetBandwidth(int bandwidth);
-    bool configSetCodingRate(int codingRate);
-    bool configSetSpreadingFactor(int spreadingFactor);
+    bool configSetFrequency(uint32_t frequencyInHz);
+    bool configSetBandwidth(uint8_t bandwidth);
+    bool configSetCodingRate(uint8_t codingRate);
+    bool configSetSpreadingFactor(uint8_t spreadingFactor);
     
     //These variables show signal quality, and are updated automatically whenever a packet is received
     int rssi = 0;
     int snr = 0;
     int signalRssi = 0;
 
-    uint32_t frequencyToPLL(long freqInHz);
-    void printRadioStatus();
-    uint16_t getErrors();
-    void setModeStandby();  //Put radio into standby mode.  Switching from Rx to Tx directly is slow
-    void SX126xReadCommand(uint8_t command, uint8_t *buffer, uint16_t size); 
-
-  private:
+    uint32_t frequencyToPLL(uint32_t freqInHz);
+    void printStatus();
+    void printErrors();
+    void setRxDutyCycle(uint32_t rxMs, uint32_t sleepMs);
     void setModeReceive();  //Puts the radio in receive mode, allowing it to receive packets
+    void setModeStandby();  //Put radio into standby mode.  Switching from Rx to Tx directly is slow
     
-    void configureRadioEssentials();
-    bool waitForRadioCommandCompletion();
+  private:
+    
+    void SX126xReadCommand(uint8_t command, uint8_t *buffer, uint16_t size); 
+    bool waitWhileBusy();
+    void setPacketParameters();
     void updateRadioFrequency();
     void updateModulationParameters();
     bool inReceiveMode = false;
@@ -108,7 +109,6 @@ class LoraSx1262 {
     uint8_t codingRate;
     uint8_t spreadingFactor;
     uint8_t lowDataRateOptimize;
-    uint32_t transmitTimeout; //Worst-case transmit time depends on some factors
 };
 
 #endif
