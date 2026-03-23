@@ -47,17 +47,35 @@ void Shart::initLSM6DSO32() {
   UPDATE_STATUS(LSMStatus, AVAILABLE, MAIN_SERIAL_PORT)
 }
 
-void Shart::initICM20948() {
+// void Shart::initICM20948() {
 
-  icm20948_instance = 0;
+//   icm20948_instance = 0;
   
-  if (!icm.init()) {
-    UPDATE_STATUS(ICMStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
-    ERROR("ICM initialization failed!", MAIN_SERIAL_PORT)
-    return;
-  }
-  UPDATE_STATUS(ICMStatus, AVAILABLE, MAIN_SERIAL_PORT)
+//   if (!icm.init()) {
+//     UPDATE_STATUS(ICMStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
+//     ERROR("ICM initialization failed!", MAIN_SERIAL_PORT)
+//     return;
+//   }
+//   UPDATE_STATUS(ICMStatus, AVAILABLE, MAIN_SERIAL_PORT)
 
+// }
+void Shart::initLIS3MDL() {
+  if (!lis.begin_I2C(LIS_CS, &LIS_I2C_BUS)) {          // hardware I2C mode, can pass in address & alt Wire
+  //if (! lis3mdl.begin_SPI(LIS3MDL_CS)) {  // hardware SPI mode
+  //if (! lis3mdl.begin_SPI(LIS3MDL_CS, LIS3MDL_CLK, LIS3MDL_MISO, LIS3MDL_MOSI)) { // soft SPI
+    UPDATE_STATUS(BMPStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
+    ERROR("BMP initialization failed!", MAIN_SERIAL_PORT)
+  }
+  lis.setPerformanceMode(LIS3MDL_MEDIUMMODE);
+  lis.setOperationMode(LIS3MDL_CONTINUOUSMODE);
+  lis.setDataRate(LIS3MDL_DATARATE_155_HZ);
+  lis.setRange(LIS3MDL_RANGE_4_GAUSS);
+  lis.setIntThreshold(500);
+  lis.configInterrupt(false, false, true, // enable z axis
+                          true, // polarity
+                          false, // don't latch
+                          true); // enabled!
+  UPDATE_STATUS(BMPStatus, AVAILABLE, MAIN_SERIAL_PORT)
 }
 
 // Initialize the BMP SPI connection
@@ -120,13 +138,13 @@ void Shart::updateStatusBMP388() {
 }
 
 // See if icm is connected (under the covers, checks device id)
-void Shart::updateStatusICM20948() {
+void Shart::updateStatusLIS3MDL() {
   
-  if (!icm.connected()) {
-    UPDATE_STATUS(ICMStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
-    ERROR("ICM reading failed!", MAIN_SERIAL_PORT)
-    return;
-  }
+  // if (!lis.connected()) {
+  //   UPDATE_STATUS(ICMStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
+  //   ERROR("ICM reading failed!", MAIN_SERIAL_PORT)
+  //   return;
+  // }
 
   UPDATE_STATUS(ICMStatus, AVAILABLE, MAIN_SERIAL_PORT)
   
@@ -195,31 +213,39 @@ void Shart::collectDataLSM6DSO32(){
   
 }
 
-// collect data from the ICM w/ modified ZaneL's library
-void Shart::collectDataICM20948() {
+// // collect data from the ICM w/ modified ZaneL's library
+// void Shart::collectDataICM20948() {
 
-  // float gyro_x, gyro_y, gyro_z;
-  // float accel_x, accel_y, accel_z;
-  float mag_x, mag_y, mag_z;
+//   // float gyro_x, gyro_y, gyro_z;
+//   // float accel_x, accel_y, accel_z;
+//   float mag_x, mag_y, mag_z;
 
-  // we don't wait for mag here because it only comes at 70Hz (we can oversample)
-  //while (!icm.accelDataIsReady()||!icm.gyroDataIsReady())//||!icm.magDataIsReady())
-  icm.task();
+//   // we don't wait for mag here because it only comes at 70Hz (we can oversample)
+//   //while (!icm.accelDataIsReady()||!icm.gyroDataIsReady())//||!icm.magDataIsReady())
+//   icm.task();
 
-  // icm.readGyroData(&gyro_x, &gyro_y, &gyro_z);
-  // icm.readAccelData(&accel_x, &accel_y, &accel_z);
-  icm.readMagData(&mag_x, &mag_y, &mag_z);
+//   // icm.readGyroData(&gyro_x, &gyro_y, &gyro_z);
+//   // icm.readAccelData(&accel_x, &accel_y, &accel_z);
+//   icm.readMagData(&mag_x, &mag_y, &mag_z);
  
-  // sensor_packet.data.acc_x = accel_x;
-  // sensor_packet.data.acc_y = accel_y;
-  // sensor_packet.data.acc_z = accel_z;
-  // sensor_packet.data.gyr_x = gyro_x;
-  // sensor_packet.data.gyr_y = gyro_y;
-  // sensor_packet.data.gyr_z = gyro_z;
-  sensor_packet.data.mag_x = mag_x;
-  sensor_packet.data.mag_y = mag_y;
-  sensor_packet.data.mag_z = mag_z;
+//   // sensor_packet.data.acc_x = accel_x;
+//   // sensor_packet.data.acc_y = accel_y;
+//   // sensor_packet.data.acc_z = accel_z;
+//   // sensor_packet.data.gyr_x = gyro_x;
+//   // sensor_packet.data.gyr_y = gyro_y;
+//   // sensor_packet.data.gyr_z = gyro_z;
+//   sensor_packet.data.mag_x = mag_x;
+//   sensor_packet.data.mag_y = mag_y;
+//   sensor_packet.data.mag_z = mag_z;
   
+// }
+void Shart::collectDataLIS3MDL() {
+  lis.read();
+  sensors_event_t event; 
+  lis.getEvent(&event);
+  sensor_packet.data.mag_x = event.magnetic.x;
+  sensor_packet.data.mag_y = event.magnetic.y;
+  sensor_packet.data.mag_z = event.magnetic.z;
 }
 
 // collect data from the BMP388 over SPI

@@ -18,7 +18,8 @@
 #include "Arduino.h"
 #include "LoraSx1262.h"
 
-bool LoraSx1262::begin() {
+bool LoraSx1262::begin(uint32_t frequencyInHz, uint8_t bandwidth, uint8_t codingRate, uint8_t spreadingFactor) 
+{
   //Set up SPI to talk to the LoRa Radio shield
   SPI.begin();
 
@@ -43,14 +44,120 @@ bool LoraSx1262::begin() {
   digitalWrite(SX1262_RESET, 1); delay(100);
   digitalWrite(SX1262_RESET, 0); delay(100);
   digitalWrite(SX1262_RESET, 1); delay(100);
-  
+
+  SPI.beginTransaction(SPISettings(500000, MSBFIRST, SPI_MODE0));
+  delay(10);
   
   //Ensure SPI communication is working with the radio
   bool success = sanityCheck();
-  if (!success) { return false; }
+  if (!success) 
+  { 
+    SPI.endTransaction();
+    SPI.end();
+    return false; 
+  }
 
-  //Run the bare-minimum required SPI commands to set up the radio to use
-  this->configureRadioEssentials();
+  this->pllFrequency = frequencyToPLL(frequencyInHz);
+  this->bandwidth = bandwidth;
+  this->codingRate = codingRate;
+  this->spreadingFactor = spreadingFactor;
+
+  //Tell DIO2 to control the RF switch so we don't have to do it manually
+  waitWhileBusy();
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x9D;  //Opcode for "SetDIO2AsRfSwitchCtrl"
+  spiBuff[1] = 0x01;  //Enable
+  SPI.transfer(spiBuff,2);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitWhileBusy(); //Give time for the radio to proces command
+
+  //Set modem to LoRa (described in datasheet section 13.4.2)
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x8A;          //Opcode for "SetPacketType"
+  spiBuff[1] = 0x01;          //Packet Type: 0x00=GFSK, 0x01=LoRa
+  SPI.transfer(spiBuff,2);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitWhileBusy();                  //Give time for radio to process the command
+
+  //Just a single SPI command to set the frequency, but it's broken out
+  //into its own function so we can call it on-the-fly when the config changes
+  this->updateRadioFrequency();
+  //Set modulation parameters is just one more SPI command, but since it
+  //is often called frequently when changing the radio config, it's broken up into its own function
+  this->updateModulationParameters();  //Sets default modulation parameters
+  this->setPacketParameters();
+
+  //Set Rx Timeout to reset on SyncWord or Header detection
+  waitWhileBusy();
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x9F;          //Opcode for "StopTimerOnPreamble"
+  spiBuff[1] = 0x00;          //Stop timer on:  0x00=SyncWord or header detection, 0x01=preamble detection  SPI.transfer(spiBuff,2);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitWhileBusy();                   //Give time for radio to process the command
+
+  // Set PA Config
+  // See datasheet 13.1.4 for descriptions and optimal settings recommendations
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x95;          //Opcode for "SetPaConfig"
+  spiBuff[1] = 0x04;          //paDutyCycle. See datasheet, set in conjuntion with hpMax
+  spiBuff[2] = 0x07;          //hpMax.  Basically Tx power.  0x00-0x07 where 0x07 is max power
+  spiBuff[3] = 0x00;          //device select: 0x00 = SX1262, 0x01 = SX1261
+  spiBuff[4] = 0x01;          //paLut (reserved, always set to 1)
+  SPI.transfer(spiBuff,5);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitWhileBusy();                  //Give time for radio to process the command
+
+  // Set TX Params
+  // See datasheet 13.4.4 for details
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x8E;          //Opcode for SetTxParams
+  spiBuff[1] = 22;            //Power.  Can be -17(0xEF) to +14x0E in Low Pow mode.  -9(0xF7) to 22(0x16) in high power mode
+  spiBuff[2] = 0x02;          //Ramp time. Lookup table.  See table 13-41. 0x02="40uS"
+  SPI.transfer(spiBuff,3);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitWhileBusy();                  //Give time for radio to process the command
+
+  //Set LoRa Symbol Number timeout
+  //How many symbols are needed for a good receive.
+  //Symbols are preamble symbols
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0xA0;          //Opcode for "SetLoRaSymbNumTimeout"
+  spiBuff[1] = 0x00;          //Number of symbols.  Ping-pong example from Semtech uses 5
+  SPI.transfer(spiBuff,2);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitWhileBusy();                 //Give time for radio to process the command
+
+  //Enable interrupts
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x08;        //0x08 is the opcode for "SetDioIrqParams"
+  spiBuff[1] = 0x00;        //IRQMask MSB.  IRQMask is "what interrupts are enabled"
+  spiBuff[2] = 0x0F;        //IRQMask LSB         See datasheet table 13-29 for details
+  spiBuff[3] = 0xFF;        //DIO1 mask MSB.  Of the interrupts detected, which should be triggered on DIO1 pin
+  spiBuff[4] = 0xFF;        //DIO1 Mask LSB
+  spiBuff[5] = 0x00;        //DIO2 Mask MSB
+  spiBuff[6] = 0x00;        //DIO2 Mask LSB
+  spiBuff[7] = 0x00;        //DIO3 Mask MSB
+  spiBuff[8] = 0x00;        //DIO3 Mask LSB
+  SPI.transfer(spiBuff,9);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitWhileBusy();
+
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x97;  //Opcode for set RF Frequencty
+  spiBuff[1] = 0x00;
+  spiBuff[2] = 0x00;  //
+  spiBuff[3] = 0xFF;  //
+  spiBuff[4] = 0xFF;  //LSB of requency
+  SPI.transfer(spiBuff,5);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitWhileBusy();  
+
+  digitalWrite(SX1262_NSS, LOW);
+  spiBuff[0] = 0x89;
+  spiBuff[1] = 0x7F;
+  SPI.transfer(spiBuff,2); // Calibrate ALL blocks: RC64K, RC13M, PLL, ADC, IMG
+  digitalWrite(SX1262_NSS, HIGH);
+  waitWhileBusy();
   
   return true;  //Return success that we set up the radio
 }
@@ -61,11 +168,10 @@ bool LoraSx1262::begin() {
 *
 * Returns: True if radio is communicating over SPI. False if no connection.
 */
-bool LoraSx1262::sanityCheck() {
+bool LoraSx1262::sanityCheck() 
+{
 
   uint16_t addressToRead = 0x0740;
-  SPI.beginTransaction(SPISettings(500000, MSBFIRST, SPI_MODE0));
-  delay(10);
 
   digitalWrite(SX1262_NSS, 0);  //CS Low = Enabled
   SPI.transfer(0x1D); //OpCode for "read register"
@@ -79,111 +185,9 @@ bool LoraSx1262::sanityCheck() {
   return regValue == 0x14;  //Success if we read 0x14 from the register
 }
 
-/*Send the bare-bones required commands needed for radio to run.
-* Do not set custom or optional commands here, please keep this section as simplified as possible.
-* Essential commands are found by reading the datasheet
-*/
-void LoraSx1262::configureRadioEssentials() {
-  waitForRadioCommandCompletion();
-  //Tell DIO2 to control the RF switch so we don't have to do it manually
-  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
-  spiBuff[0] = 0x9D;  //Opcode for "SetDIO2AsRfSwitchCtrl"
-  spiBuff[1] = 0x01;  //Enable
-  SPI.transfer(spiBuff,2);
-  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion(); //Give time for the radio to proces command
 
-  //Just a single SPI command to set the frequency, but it's broken out
-  //into its own function so we can call it on-the-fly when the config changes
-  this->configSetFrequency(915000000);  //Set default frequency to 915mhz
-
-  //Set modem to LoRa (described in datasheet section 13.4.2)
-  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
-  spiBuff[0] = 0x8A;          //Opcode for "SetPacketType"
-  spiBuff[1] = 0x01;          //Packet Type: 0x00=GFSK, 0x01=LoRa
-  SPI.transfer(spiBuff,2);
-  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();                  //Give time for radio to process the command
-
-  //Set Rx Timeout to reset on SyncWord or Header detection
-  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
-  spiBuff[0] = 0x9F;          //Opcode for "StopTimerOnPreamble"
-  spiBuff[1] = 0x00;          //Stop timer on:  0x00=SyncWord or header detection, 0x01=preamble detection  SPI.transfer(spiBuff,2);
-  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();                   //Give time for radio to process the command
-
-  //Set modulation parameters is just one more SPI command, but since it
-  //is often called frequently when changing the radio config, it's broken up into its own function
-  this->configSetPreset(PRESET_DEFAULT);  //Sets default modulation parameters
-
-  // Set PA Config
-  // See datasheet 13.1.4 for descriptions and optimal settings recommendations
-  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
-  spiBuff[0] = 0x95;          //Opcode for "SetPaConfig"
-  spiBuff[1] = 0x04;          //paDutyCycle. See datasheet, set in conjuntion with hpMax
-  spiBuff[2] = 0x07;          //hpMax.  Basically Tx power.  0x00-0x07 where 0x07 is max power
-  spiBuff[3] = 0x00;          //device select: 0x00 = SX1262, 0x01 = SX1261
-  spiBuff[4] = 0x01;          //paLut (reserved, always set to 1)
-  SPI.transfer(spiBuff,5);
-  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();                  //Give time for radio to process the command
-
-  // Set TX Params
-  // See datasheet 13.4.4 for details
-  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
-  spiBuff[0] = 0x8E;          //Opcode for SetTxParams
-  spiBuff[1] = 22;            //Power.  Can be -17(0xEF) to +14x0E in Low Pow mode.  -9(0xF7) to 22(0x16) in high power mode
-  spiBuff[2] = 0x02;          //Ramp time. Lookup table.  See table 13-41. 0x02="40uS"
-  SPI.transfer(spiBuff,3);
-  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();                  //Give time for radio to process the command
-
-  //Set LoRa Symbol Number timeout
-  //How many symbols are needed for a good receive.
-  //Symbols are preamble symbols
-  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
-  spiBuff[0] = 0xA0;          //Opcode for "SetLoRaSymbNumTimeout"
-  spiBuff[1] = 0x00;          //Number of symbols.  Ping-pong example from Semtech uses 5
-  SPI.transfer(spiBuff,2);
-  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();                 //Give time for radio to process the command
-
-  //Enable interrupts
-  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
-  spiBuff[0] = 0x08;        //0x08 is the opcode for "SetDioIrqParams"
-  spiBuff[1] = 0x00;        //IRQMask MSB.  IRQMask is "what interrupts are enabled"
-  spiBuff[2] = 0x02;        //IRQMask LSB         See datasheet table 13-29 for details
-  spiBuff[3] = 0xFF;        //DIO1 mask MSB.  Of the interrupts detected, which should be triggered on DIO1 pin
-  spiBuff[4] = 0xFF;        //DIO1 Mask LSB
-  spiBuff[5] = 0x00;        //DIO2 Mask MSB
-  spiBuff[6] = 0x00;        //DIO2 Mask LSB
-  spiBuff[7] = 0x00;        //DIO3 Mask MSB
-  spiBuff[8] = 0x00;        //DIO3 Mask LSB
-  SPI.transfer(spiBuff,9);
-  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();                 //Give time for radio to process the command
-
-  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
-  spiBuff[0] = 0x97;  //Opcode for set RF Frequencty
-  spiBuff[1] = 0x00;
-  spiBuff[2] = 0x00;  //
-  spiBuff[3] = 0xFF;  //
-  spiBuff[4] = 0xFF;  //LSB of requency
-  SPI.transfer(spiBuff,5);
-  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();  
-
-  digitalWrite(SX1262_NSS, LOW);
-  spiBuff[0] = 0x89;
-  spiBuff[1] = 0x7F;
-  SPI.transfer(spiBuff,2); // Calibrate ALL blocks: RC64K, RC13M, PLL, ADC, IMG
-  digitalWrite(SX1262_NSS, HIGH);
-  waitForRadioCommandCompletion();
-
-}
-
-
-void LoraSx1262::transmit(byte *data, int dataLen) {
+void LoraSx1262::transmit(byte *data, int dataLen) 
+{
   //Max lora packet size is 255 bytes
   if (dataLen > 255) { dataLen = 255;}
 
@@ -192,6 +196,7 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
     setModeStandby();
   }
 
+  waitWhileBusy(); //Wait for tx to complete, with a timeout so we don't wait forever
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x8C;          //Opcode for "SetPacketParameters"
   spiBuff[1] = 0x00;          //PacketParam1 = Preamble Len MSB
@@ -202,10 +207,10 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
   spiBuff[6] = 0x00;          //PacketParam6 = Invert IQ.  0x00 = Standard, 0x01 = Inverted
   SPI.transfer(spiBuff,7);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();  //Give time for radio to process the command
 
   //Write the payload to the buffer
   //  Reminder: PayloadLength is defined in setPacketParams
+  waitWhileBusy();  //Give time for radio to process the command
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x0E,          //Opcode for WriteBuffer command
   spiBuff[1] = 0x00;          //Dummy byte before writing payload
@@ -220,7 +225,8 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
   //TEST: I tested this method, which uses about 0.1ms (100 microseconds) more time, but it saves us about 10% of ram.
   //I think this is a fair trade 
   uint8_t size = sizeof(spiBuff);
-  for (uint16_t i = 0; i < dataLen; i += size) {
+  for (uint16_t i = 0; i < dataLen; i += size) 
+  {
     if (i + size > dataLen) { size = dataLen - i; }
     memcpy(spiBuff,&(data[i]),size);
     SPI.transfer(spiBuff,size); //Write the payload itself
@@ -228,10 +234,10 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
 
 
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();   //Give time for radio to process the command
 
   //Transmit!
   // An interrupt will be triggered if we surpass our timeout
+  waitWhileBusy(); //Wait for tx to complete, with a timeout so we don't wait forever
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x83;          //Opcode for SetTx command
   spiBuff[1] = 0xFF;          //Timeout (3-byte number)
@@ -239,8 +245,32 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
   spiBuff[3] = 0xFF;          //Timeout (3-byte number)
   SPI.transfer(spiBuff,4);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion(); //Wait for tx to complete, with a timeout so we don't wait forever
+
   //Remember that we are in Tx mode.  If we want to receive a packet, we need to switch into receiving mode
+  while (!digitalRead(SX1262_DIO1)) {
+    delay(100);
+    Serial.print("waiting");
+  }; //Return -1, meanining no packet ready
+
+  waitWhileBusy();
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x12;          //Opcode for ClearIRQStatus command
+  spiBuff[1] = 0x00;          //IRQ bits to clear (MSB) (0xFFFF means clear all interrupts)
+  spiBuff[2] = 0x00;          //IRQ bits to clear (LSB)
+  spiBuff[3] = 0x00;          //IRQ bits to clear (LSB)
+  SPI.transfer(spiBuff,4);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitWhileBusy();
+  Serial.print(spiBuff[2], HEX); Serial.print(spiBuff[3], HEX);
+  
+  waitWhileBusy();
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x02;          //Opcode for ClearIRQStatus command
+  spiBuff[1] = 0xFF;          //IRQ bits to clear (MSB) (0xFFFF means clear all interrupts)
+  spiBuff[2] = 0xFF;          //IRQ bits to clear (LSB)
+  SPI.transfer(spiBuff,3);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+
   inReceiveMode = false;
 }
 
@@ -250,7 +280,8 @@ Specify a timeout (in milliseconds) to avoid an infinite loop if something happe
 
 Returns TRUE on success, FALSE if timeout hit
 */
-bool LoraSx1262::waitForRadioCommandCompletion() {
+bool LoraSx1262::waitWhileBusy() 
+{
   while (digitalRead(SX1262_BUSY)) 
   {
     Serial.println("bisy");
@@ -261,13 +292,10 @@ bool LoraSx1262::waitForRadioCommandCompletion() {
   return true;
 }
 
-//Sets the radio into receive mode, allowing it to listen for incoming packets.
-//If radio is already in receive mode, this does nothing.
-//There's no such thing as "setModeTransmit" because it is set automatically when transmit() is called
-void LoraSx1262::setModeReceive() {
-  //if (inReceiveMode) { return; }  //We're already in receive mode, this would do nothing
-
+void LoraSx1262::setPacketParameters()
+{
   //Set packet parameters
+  waitWhileBusy();
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x8C;          //Opcode for "SetPacketParameters"
   spiBuff[1] = 0x00;          //PacketParam1 = Preamble Len MSB
@@ -278,10 +306,20 @@ void LoraSx1262::setModeReceive() {
   spiBuff[6] = 0x00;          //PacketParam6 = Invert IQ.  0x00 = Standard, 0x01 = Inverted
   SPI.transfer(spiBuff,7);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();
+}
+
+//Sets the radio into receive mode, allowing it to listen for incoming packets.
+//If radio is already in receive mode, this does nothing.
+//There's no such thing as "setModeTransmit" because it is set automatically when transmit() is called
+void LoraSx1262::setModeReceive() 
+{
+  if (inReceiveMode) { return; }  //We're already in receive mode, this would do nothing
+
+  this->setPacketParameters();
 
   // Tell the chip to wait for it to receive a packet.
   // Based on our previous config, this should throw an interrupt when we get a packet
+  waitWhileBusy();
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x82;          //0x82 is the opcode for "SetRX"
   spiBuff[1] = 0xFF;          //24-bit timeout, 0xFFFFFF means no timeout
@@ -289,7 +327,6 @@ void LoraSx1262::setModeReceive() {
   spiBuff[3] = 0xFF;          // ^^
   SPI.transfer(spiBuff,4);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();
   
   //Remember that we're in receive mode so we don't need to run this code again unnecessarily
   inReceiveMode = true;
@@ -297,15 +334,16 @@ void LoraSx1262::setModeReceive() {
 
 /*Set radio into standby mode.
 Switching directly from Rx to Tx mode can be slow, so we first want to go into standby*/
-void LoraSx1262::setModeStandby() {
+void LoraSx1262::setModeStandby() 
+{
   // Tell the chip to wait for it to receive a packet.
   // Based on our previous config, this should throw an interrupt when we get a packet
+  waitWhileBusy();
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x80;          //0x80 is the opcode for "SetStandby"
   spiBuff[1] = 0x00;          //0x00 = STDBY_RC, 0x01=STDBY_XOSC
   SPI.transfer(spiBuff,2);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();
   inReceiveMode = false;  //No longer in receive mode
 }
 
@@ -318,15 +356,18 @@ Returns -1 when no packet is available.
 Returns 0 when an empty packet is received (packet with no payload)
 Returns payload size (1-255) when a packet with a non-zero payload is received. If packet received is larger than the buffer provided, this will return buffMaxLen
 */
-int LoraSx1262::lora_receive_async(byte* buff, int buffMaxLen) {
-  setModeReceive(); //Sets the mode to receive (if not already in receive mode)
+int LoraSx1262::lora_receive_async(byte* buff, int buffMaxLen) 
+{
+  //setModeReceive(); //Sets the mode to receive (if not already in receive mode)
 
   //Radio pin DIO1 (interrupt) goes high when we have a packet ready.  If it's low, there's no packet yet
   if (digitalRead(SX1262_DIO1) == false) { return -1; } //Return -1, meanining no packet ready
 
   //Tell the radio to clear the interrupt, and set the pin back inactive.
-  while (digitalRead(SX1262_DIO1)) {
+  while (digitalRead(SX1262_DIO1)) 
+  {
     //Clear all interrupt flags.  This should result in the interrupt pin going low
+    waitWhileBusy();
     digitalWrite(SX1262_NSS,0); //Enable radio chip-select
     spiBuff[0] = 0x02;          //Opcode for ClearIRQStatus command
     spiBuff[1] = 0xFF;          //IRQ bits to clear (MSB) (0xFFFF means clear all interrupts)
@@ -339,6 +380,7 @@ int LoraSx1262::lora_receive_async(byte* buff, int buffMaxLen) {
   // This is things like radio strength, noise, etc.
   // See datasheet 13.5.3 for more info
   // This provides debug info about the packet we received
+  waitWhileBusy();
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x14;          //Opcode for get packet status
   spiBuff[1] = 0xFF;          //Dummy byte. Returns status
@@ -356,6 +398,7 @@ int LoraSx1262::lora_receive_async(byte* buff, int buffMaxLen) {
     
   //We're almost ready to read the packet from the radio
   //But first we have to know how big the packet is, and where in the radio memory it is stored
+  waitWhileBusy();
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x13;          //Opcode for GetRxBufferStatus command
   spiBuff[1] = 0xFF;          //Dummy.  Returns radio status
@@ -371,6 +414,7 @@ int LoraSx1262::lora_receive_async(byte* buff, int buffMaxLen) {
   if (buffMaxLen < payloadLen) {payloadLen = buffMaxLen;}
 
   //Read the radio buffer from the SX1262 into the user-supplied buffer
+  waitWhileBusy();
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x1E;          //Opcode for ReadBuffer command
   spiBuff[1] = startAddress;  //SX1262 memory location to start reading from
@@ -391,18 +435,22 @@ Returns -1 when no packet is available and timeout was hit.
 Returns 0 when an empty packet is received (packet with no payload)
 Returns payload size (1-255) when a packet with a non-zero payload is received. If packet received is larger than the buffer provided, this will return buffMaxLen
 */
-int LoraSx1262::lora_receive_blocking(byte *buff, int buffMaxLen, uint32_t timeout) {
+int LoraSx1262::lora_receive_blocking(byte *buff, int buffMaxLen, uint32_t timeout) 
+{
   setModeReceive(); //Sets the mode to receive (if not already in receive mode)
 
   uint32_t startTime = millis();
   uint32_t elapsed = startTime;
 
   //Wait for radio interrupt pin to go high, indicating a packet was received, or if we hit our timeout
-  while (digitalRead(SX1262_DIO1) == false) {
+  while (digitalRead(SX1262_DIO1) == false) 
+  {
     //If user specified a timeout, check if we hit it
-    if (timeout > 0) {
+    if (timeout > 0) 
+    {
       elapsed = millis() - startTime;
-      if (elapsed >= timeout) {
+      if (elapsed >= timeout) 
+      {
         return -1;    //Return error, saying that we hit our timeout
       }
     }
@@ -415,8 +463,10 @@ int LoraSx1262::lora_receive_blocking(byte *buff, int buffMaxLen, uint32_t timeo
 //Set the radio frequency.  Just a single SPI call,
 //but this is broken out to make it more convenient to change frequency on-the-fly
 //You must set this->pllFrequency before calling this
-void LoraSx1262::updateRadioFrequency() {
+void LoraSx1262::updateRadioFrequency() 
+{
   //Set PLL frequency (this is a complicated math equation.  See datasheet entry for SetRfFrequency)
+  waitWhileBusy();                  //Give time for the radio to proces command
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x86;  //Opcode for set RF Frequencty
   spiBuff[1] = (this->pllFrequency >> 24) & 0xFF;  //MSB of pll frequency
@@ -425,13 +475,13 @@ void LoraSx1262::updateRadioFrequency() {
   spiBuff[4] = (this->pllFrequency >>  0) & 0xFF;  //LSB of requency
   SPI.transfer(spiBuff,5);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();                  //Give time for the radio to proces command
 }
 
 //Set the radio modulation parameters.
 //This is things like bandwitdh, spreading factor, coding rate, etc.
 //This is broken into its own function because this command might get called frequently
-void LoraSx1262::updateModulationParameters() {
+void LoraSx1262::updateModulationParameters() 
+{
   /*Set modulation parameters
   # Modulation parameters are:
   #  - SpreadingFactor
@@ -441,98 +491,16 @@ void LoraSx1262::updateModulationParameters() {
   # None of these actually matter that much.  You can set them to anything, and data will still show up
   # on a radio frequency monitor.
   # You just MUST call "setModulationParameters", otherwise the radio won't work at all*/
+  waitWhileBusy();    
   digitalWrite(SX1262_NSS,0);       //Enable radio chip-select
   spiBuff[0] = 0x8B;                //Opcode for "SetModulationParameters"
   spiBuff[1] = this->spreadingFactor;     //ModParam1 = Spreading Factor.  Can be SF5-SF12, written in hex (0x05-0x0C)
   spiBuff[2] = this->bandwidth;           //ModParam2 = Bandwidth.  See Datasheet 13.4.5.2 for details. 0x00=7.81khz (slowest)
   spiBuff[3] = this->codingRate;          //ModParam3 = CodingRate.  Semtech recommends CR_4_5 (which is 0x01).  Options are 0x01-0x04, which correspond to coding rate 5-8 respectively
-  spiBuff[4] = this->lowDataRateOptimize; //LowDataRateOptimize.  0x00 = 0ff, 0x01 = On.  Required to be on for SF11 + SF12
+  spiBuff[4] = (this->spreadingFactor >= 11) ? 1 : 0; //LowDataRateOptimize.  0x00 = 0ff, 0x01 = On.  Required to be on for SF11 + SF12
   SPI.transfer(spiBuff,5);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion();                  //Give time for radio to process the command
-
-  //Come up with a reasonable timeout for transmissions
-  //SF12 is painfully slow, so we want a nice long timeout for that,
-  //but we really don't want someone using SF5 to have to wait MINUTES for a timeout
-  //I came up with these timeouts by measuring how long it actually took to transmit a packet
-  //at each spreading factor with a MAX 255-byte payload and 7khz Bandwitdh (the slowest one)
-  switch (this->spreadingFactor) {
-    case 12:
-      this->transmitTimeout = 252000; //Actual tx time 126 seconds
-      break;
-    case 11:
-      this->transmitTimeout = 160000; //Actual tx time 81 seconds
-      break;
-    case 10:
-      this->transmitTimeout = 60000; //Actual tx time 36 seconds
-      break;
-    case 9:
-      this->transmitTimeout = 40000; //Actual tx time 20 seconds
-      break;
-    case 8:
-      this->transmitTimeout = 20000; //Actual tx time 11 seconds
-      break;
-    case 7:
-      this->transmitTimeout = 12000; //Actual tx time 6.3 seconds
-      break;
-    case 6:
-      this->transmitTimeout = 7000; //Actual tx time 3.7s seconds
-      break;
-    default:  //SF5
-      this->transmitTimeout = 5000; //Actual tx time 2.2 seconds
-      break;
-  }
-}
-
-
-//--------------------------
-// ADVANCED FUNCTIONS
-//--------------------------
-//The functions below are intended for advanced users who are more familiar with LoRa Radios at a lower level
-
-
-/**(Optional) Use one of the pre-made radio configurations
-* This is ideal for making simple changes to the radio config
-* without needing to understand how the underlying settings work
-* 
-* Argument: pass in one of the following
-*     - PRESET_DEFAULT:   Default radio config.
-*                         Medium range, medium speed
-*     - PRESET_FAST:      Faster speeds, but less reliable at long ranges.
-*                         Use when you need fast data transfer and have radios close together
-*     - PRESET_LONGRANGE: Most reliable option, but slow. Suitable when you prioritize
-*                         reliability over speed, or when transmitting over long distances
-*/
-bool LoraSx1262::configSetPreset(int preset) {
-  if (preset == PRESET_DEFAULT) {
-    this->bandwidth = 5;            //250khz
-    this->codingRate = 1;           //CR_4_5
-    this->spreadingFactor = 7;      //SF7
-    this->lowDataRateOptimize = 0;  //Don't optimize (used for SF12 only)
-    this->updateModulationParameters();
-    return true;
-  }
-
-  if (preset == PRESET_LONGRANGE) {
-    this->bandwidth = 4;            //125khz
-    this->codingRate = 1;           //CR_4_5
-    this->spreadingFactor = 12;     //SF12
-    this->lowDataRateOptimize = 1;  //Optimize for low data rate (SF12 only)
-    this->updateModulationParameters();
-    return true;
-  }
-
-  if (preset == PRESET_FAST) {
-    this->bandwidth = 6;            //500khz
-    this->codingRate = 1;           //CR_4_5
-    this->spreadingFactor = 5;      //SF5
-    this->lowDataRateOptimize = 0;  //Don't optimize (used for SF12 only)
-    this->updateModulationParameters();
-    return true;
-  }
-
-  //Invalid preset specified
-  return false;
+                //Give time for radio to process the command
 }
 
 /** (Optional) Set the operating frequency of the radio.
@@ -543,7 +511,8 @@ bool LoraSx1262::configSetPreset(int preset) {
 * Specify the desired frequency in Hz (eg 915MHZ is 915000000).
 * Returns TRUE on success, FALSE on invalid frequency
 */
-bool LoraSx1262::configSetFrequency(long frequencyInHz) {
+bool LoraSx1262::configSetFrequency(uint32_t frequencyInHz) 
+{
   //Make sure the specified frequency is in the valid range.
   if (frequencyInHz < 150000000 || frequencyInHz > 960000000) { return false;}
 
@@ -574,7 +543,8 @@ bool LoraSx1262::configSetFrequency(long frequencyInHz) {
 *
 * Returns TRUE on success, FALSE on failure (invalid bandwidth)
 */
-bool LoraSx1262::configSetBandwidth(int bandwidth) {
+bool LoraSx1262::configSetBandwidth(uint8_t bandwidth) 
+{
   //Bandwidth setting must be 0-10 (excluding 7 for some reason)
   if (bandwidth < 0 || bandwidth > 0x0A || bandwidth == 7) { return false; }
   this->bandwidth = bandwidth;
@@ -593,7 +563,8 @@ bool LoraSx1262::configSetBandwidth(int bandwidth) {
 *
 * Returns TRUE on success, FALSE on failure (invalid coding rate)
 */
-bool LoraSx1262::configSetCodingRate(int codingRate) {
+bool LoraSx1262::configSetCodingRate(uint8_t codingRate) 
+{
   //Coding rate must be 1-4 (inclusive)
   if (codingRate < 1 || codingRate > 4) { return false; }
   this->codingRate = codingRate;
@@ -619,7 +590,8 @@ Lower spreading factors are good when the radios are close, which allows faster 
 *
 * Returns TRUE on success, FALSE on failure (incorrect spreading factor)
 */
-bool LoraSx1262::configSetSpreadingFactor(int spreadingFactor) {
+bool LoraSx1262::configSetSpreadingFactor(uint8_t spreadingFactor) 
+{
   if (spreadingFactor < 5 || spreadingFactor > 12) { return false; }
 
   //The datasheet highly recommends enabling "LowDataRateOptimize" for SF11 and SF12
@@ -637,7 +609,8 @@ bool LoraSx1262::configSetSpreadingFactor(int spreadingFactor) {
 * See datasheet section 13.4.1 for this calculation.
 * Example: 915mhz (915000000) has a PLL of 959447040
 */
-uint32_t LoraSx1262::frequencyToPLL(long rfFreq) {
+uint32_t LoraSx1262::frequencyToPLL(uint32_t rfFreq) 
+{
   /* Datasheet Says:
 	 *		rfFreq = (pllFreq * xtalFreq) / 2^25
 	 * Rewrite to solve for pllFreq
@@ -669,23 +642,22 @@ uint32_t LoraSx1262::frequencyToPLL(long rfFreq) {
   return q + (r / 15625UL);  //Finally divide the the remainder part before adding it back in with the quotient
 }
 
-void LoraSx1262::printRadioStatus() {
-  
+void LoraSx1262::printStatus() 
+{
+  waitWhileBusy();
   digitalWrite(SX1262_NSS,0);
   spiBuff[0] = 0xC0; // GetStatus
   spiBuff[1] = 0x00;
   SPI.transfer(spiBuff,2);
   digitalWrite(SX1262_NSS,1);
-  waitForRadioCommandCompletion();
   Serial.print("Radio Status: 0x");
   Serial.println(spiBuff[1], HEX);
 }
 
 void LoraSx1262::SX126xReadCommand(uint8_t command, uint8_t *buffer, uint16_t size)
 {
-
+  waitWhileBusy();
 	digitalWrite(SX1262_NSS, LOW);
-
 	SPI.transfer((uint8_t)command);
 	SPI.transfer(0x00);
 	for (uint16_t i = 0; i < size; i++)
@@ -693,18 +665,11 @@ void LoraSx1262::SX126xReadCommand(uint8_t command, uint8_t *buffer, uint16_t si
 		buffer[i] = SPI.transfer(0x00);
 	}
 	digitalWrite(SX1262_NSS, HIGH);
-  waitForRadioCommandCompletion();
+  
 }
 
-uint16_t LoraSx1262::getErrors() {
-
-  // digitalWrite(SX1262_NSS, LOW);
-  // spiBuff[0] = 0x89;
-  // spiBuff[1] = 0x7F;
-  // SPI.transfer(spiBuff,2); // Calibrate ALL blocks: RC64K, RC13M, PLL, ADC, IMG
-  // digitalWrite(SX1262_NSS, HIGH);
-  // waitForRadioCommandCompletion();
-  // delay(100);
+void LoraSx1262::printErrors() 
+{
   
   RadioError_t error;
 
@@ -730,7 +695,24 @@ uint16_t LoraSx1262::getErrors() {
   // SPI.transfer(spiBuff,2);
   // digitalWrite(SX1262_NSS,1); //Disable radio chip-select
   // waitForRadioCommandCompletion();  
+}
+
+void LoraSx1262::setRxDutyCycle(uint32_t rxMs, uint32_t sleepMs) 
+{
+  uint32_t rx    =    rxMs << 6;
+  uint32_t sleep = sleepMs << 6;
+  waitWhileBusy();
+  digitalWrite(SX1262_NSS,0);     
+  spiBuff[0] = 0x94;
+  spiBuff[1] = rx >> 16 & 0xFF;
+  spiBuff[2] = rx >> 8 & 0xFF;
+  spiBuff[3] = rx & 0xFF;
+  spiBuff[4] = sleep >> 16 & 0xFF;
+  spiBuff[5] = sleep >> 8 & 0xFF;
+  spiBuff[6] = sleep & 0xFF;
+
+  SPI.transfer(spiBuff,7);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
   
-  return error.Value;
 }
 

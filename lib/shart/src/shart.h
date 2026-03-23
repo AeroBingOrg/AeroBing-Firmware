@@ -44,7 +44,8 @@
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #include <Adafruit_BMP3XX.h>
 #include <Adafruit_ADXL375.h>
-#include <Teensy-ICM-20948.h>
+//#include <Teensy-ICM-20948.h>
+#include <Adafruit_LIS3MDL.h>
 #include <Adafruit_LSM6DSO32.h>
 #include <UbloxGPS.h>
 #include <UbxGpsConfig.h>
@@ -54,10 +55,14 @@
 #define GPS_BAUD_RATE   9600
 
 // SPI bus for BMP388, default SPI bus (shared)
+SPIClass SPI1 = SPIClass();
 #define BMP_SPI_BUS  SPI1
 #define ADXL_SPI_BUS SPI
 #define ICM_SPI_BUS  SPI1
 #define LSM_I2C_BUS  Wire
+
+#define LIS_I2C_BUS  Wire
+#define LIS_CS   38
 
 // SPI chip select pins
 #define BMP_CS  0 // CS
@@ -137,14 +142,16 @@ class Shart {
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // PRIVATE SENSOR MEMBERS
     // initializers
-    void initICM20948();
+    //void initICM20948();
+    void initLIS3MDL();
     void initLSM6DSO32();
     void initBMP388();
     void initADXL375();
     void initGTU7();
 
     // individual sensor collectors
-    void collectDataICM20948();
+    //void collectDataICM20948();
+    void collectDataLIS3MDL();
     void collectDataLSM6DSO32();
     void collectDataBMP388();
     void collectDataADXL375();
@@ -153,7 +160,7 @@ class Shart {
     
     // These perform simple checks on the sensors to tell if they are connected
     // If a sensor is not connected, we do not want to try to collect data from it.
-    void updateStatusICM20948();
+    void updateStatusLIS3MDL();
     void updateStatusBMP388();
     void updateStatusADXL375();
     void updateStatusLSM6DSO32();
@@ -163,8 +170,9 @@ class Shart {
     UbloxGps<NavPvtPacket> gps  = UbloxGps<NavPvtPacket>(GPS_SERIAL_PORT);
     Adafruit_BMP3XX        bmp  = Adafruit_BMP3XX();
     Adafruit_ADXL375       adxl = Adafruit_ADXL375(ADXL_CS, &ADXL_SPI_BUS);
-    TeensyICM20948         icm  = TeensyICM20948(ICM_CS, &ICM_SPI_BUS);
+    //TeensyICM20948         icm  = TeensyICM20948(ICM_CS, &ICM_SPI_BUS);
     Adafruit_LSM6DSO32     lsm  = Adafruit_LSM6DSO32();
+    Adafruit_LIS3MDL       lis  = Adafruit_LIS3MDL();
 
     // Component statuses, note: We only care about components that need to be initialized! 
     Status BMPStatus  = UNINITIALIZED;

@@ -1,4 +1,4 @@
-//#define BRIDGE
+#define BRIDGE
 
 #ifndef BRIDGE
 #include <Arduino.h>
@@ -68,7 +68,7 @@ void loop()
 #include <Arduino.h>
 
 #define COMPUTER_BAUDRATE 9600
-#define GPS_BAUDRATE 9600
+#define GPS_BAUDRATE 115200//9600
 
 void setup()
 {
