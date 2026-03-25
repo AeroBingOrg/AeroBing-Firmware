@@ -89,7 +89,7 @@ SPIClass SPI1 = SPIClass();
 #define ADXL_CHIP_ID 0xE5
 #define LSM_CHIP_ID  0x6C
 
-#define BMI_CHIP_ID  0x00
+#define BMI_CHIP_ID  0x00 //both gyro and accel chip ids are listed as 00
 
 // Define bit offsets for status bitmap
 #define ICM_STATUS_OFFSET  0
@@ -99,7 +99,7 @@ SPIClass SPI1 = SPIClass();
 #define SD_STATUS_OFFSET   4
 #define PYRO_STATUS_OFFSET 5
 
-#define BMI_STATUS_OFFSET  6 //just defining this for now, probably not properly implemented
+#define BMI_STATUS_OFFSET  6 //just defining this for now
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Preprocessor directoves for EXPORT
