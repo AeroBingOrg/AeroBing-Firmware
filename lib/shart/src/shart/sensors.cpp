@@ -116,6 +116,16 @@ void Shart::initADXL375() {
 
 }
 
+void Shart::initBMI088() {
+
+  if (!bmi_accel.begin() || !bmi_gyro.begin()) {
+    UPDATE_STATUS(BMIStatus, UNINITIALIZED, MAIN_SERIAL_PORT);
+    ERROR("BMI initialization failed!", MAIN_SERIAL_PORT);
+    return;
+  }
+
+  UPDATE_STATUS(BMIStatus, AVAILABLE, MAIN_SERIAL_PORT);
+}
 
 /*******************************************************************************
 * Status checkers
@@ -172,6 +182,17 @@ void Shart::updateStatusLSM6DSO32() {
   }
 
   UPDATE_STATUS(LSMStatus, AVAILABLE, MAIN_SERIAL_PORT)
+}
+
+void Shart::updateStatusBMI088() {
+
+  if (bmi_accel.begin() == -1 || bmi_gyro.begin() == -1) {
+      UPDATE_STATUS(BMIStatus, UNAVAILABLE, MAIN_SERIAL_PORT);
+      ERROR("BMI not found!", MAIN_SERIAL_PORT);
+      return;
+  }
+
+  UPDATE_STATUS(BMIStatus, AVAILABLE, MAIN_SERIAL_PORT);
 }
 
 /*******************************************************************************
@@ -256,5 +277,19 @@ void Shart::collectDataBMP388() {
   bmp.performReading();
   sensor_packet.data.temp = bmp.temperature; // in *C
   sensor_packet.data.pres = bmp.pressure; // in HPa
+
+}
+
+void Shart::collectDataBMI088() {
+
+  bmi_accel.readSensor();
+  sensor_packet.data.acc_x = bmi_accel.getAccelX_mss();
+  sensor_packet.data.acc_y = bmi_accel.getAccelY_mss();
+  sensor_packet.data.acc_z = bmi_accel.getAccelZ_mss();
+
+  bmi_gyro.readSensor();
+  sensor_packet.data.gyr_x = bmi_gyro.getGyroX_rads();
+  sensor_packet.data.gyr_y = bmi_gyro.getGyroY_rads();
+  sensor_packet.data.gyr_z = bmi_gyro.getGyroZ_rads(); 
 
 }

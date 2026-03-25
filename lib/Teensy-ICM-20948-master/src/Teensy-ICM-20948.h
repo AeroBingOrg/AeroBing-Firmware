@@ -18,7 +18,8 @@
 typedef struct {
   int cs_pin                  = 0;
   int spi_speed               = 1000000;
-  SPIClass *spi_bus           = &SPI1;
+  SPIClass spi_obj            = SPIClass();
+  SPIClass *spi_bus           = &spi_obj;
   int mode                    = 1;
   bool enable_gyroscope       = true;
   bool enable_accelerometer   = true;
@@ -92,4 +93,4 @@ class TeensyICM20948
 };
 
 
-#endif // __TEENSY_ICM_20948_H__
+#endif // __TEENSY_ICM_20948_H__;
