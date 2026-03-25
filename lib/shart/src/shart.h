@@ -50,7 +50,6 @@
 #include <UbloxGPS.h>
 #include <UbxGpsConfig.h>
 #include <BMI088.h>
-#include <BMI088.h>
 
 // GPS pins, not that these are RX and TX on the microcontroller, NOT the GTU7 (i.e. GTU_RX_PIN goes to the TX pin on the GTU)
 #define GPS_SERIAL_PORT Serial2
@@ -68,16 +67,11 @@ SPIClass SPI1 = SPIClass();
 
 #define BMI_SPI_BUS  SPI1
 
-#define BMI_SPI_BUS  SPI1
-
 // SPI chip select pins
 #define BMP_CS  0 // CS
 #define ADXL_CS 10
 #define ICM_CS  38
 #define LSM_I2C_ADDR 106U
-
-#define BMI_ACCEL_CS 14
-#define BMI_GYRO_CS  5
 
 #define BMI_ACCEL_CS 14
 #define BMI_GYRO_CS  5
@@ -95,7 +89,8 @@ SPIClass SPI1 = SPIClass();
 #define ADXL_CHIP_ID 0xE5
 #define LSM_CHIP_ID  0x6C
 
-#define BMI_CHIP_ID  0x00 //both gyro and accel chip ids are listed as 00
+#define BMI_ACCEL_CHIP_ID 0x1E
+#define BMI_GYRO_CHIP_ID  0x0F
 
 // Define bit offsets for status bitmap
 #define ICM_STATUS_OFFSET  0

@@ -19,6 +19,7 @@ void Shart::init() {
   initLSM6DSO32();
   initBMP388();
   initADXL375();
+  initBMI088();
 
   
   initGTU7();
@@ -52,6 +53,7 @@ void Shart::collect() {
   updateStatusBMP388();    if (BMPStatus  == AVAILABLE) collectDataBMP388();
   updateStatusADXL375();   if (ADXLStatus == AVAILABLE) collectDataADXL375();
   updateStatusLSM6DSO32(); if (LSMStatus  == AVAILABLE) collectDataLSM6DSO32();
+  updateStatusBMI088();    if (BMIStatus == AVAILABLE)  collectDataBMI088();
   collectDataGTU7(); // GPS status doesn't matter here
 
   setStatusByte();
@@ -81,6 +83,7 @@ void Shart::reconnect() {
   if (getStatusADXL375()   == UNINITIALIZED) initADXL375();
   if (getStatusICM20948()  == UNINITIALIZED) initICM20948();
   if (getStatusLSM6DSO32() == UNINITIALIZED) initLSM6DSO32();
+  //if (getStatusBMI088()    == UNINITIALIZED) initBMI088();
 
   #endif
   
@@ -134,6 +137,7 @@ void Shart::setStatusByte() {
   sensor_packet.data.status |= (ADXLStatus == AVAILABLE) << ADXL_STATUS_OFFSET;
   sensor_packet.data.status |= (LSMStatus == AVAILABLE)  << LSM_STATUS_OFFSET;
   sensor_packet.data.status |= (SDStatus == AVAILABLE)   << SD_STATUS_OFFSET;
+  sensor_packet.data.status |= (BMIStatus == AVAILABLE)  << BMI_STATUS_OFFSET;
   sensor_packet.data.status |= (analogRead(41) > 712) << PYRO_STATUS_OFFSET;
   sensor_packet.data.reserved = sd_file_opened;
 }

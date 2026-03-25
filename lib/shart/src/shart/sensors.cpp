@@ -118,7 +118,7 @@ void Shart::initADXL375() {
 
 void Shart::initBMI088() {
 
-  if (!bmi_accel.begin() || !bmi_gyro.begin()) {
+  if (bmi_accel.begin() == -1 || bmi_gyro.begin() == -1) {
     UPDATE_STATUS(BMIStatus, UNINITIALIZED, MAIN_SERIAL_PORT);
     ERROR("BMI initialization failed!", MAIN_SERIAL_PORT);
     return;
