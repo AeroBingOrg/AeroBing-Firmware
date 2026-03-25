@@ -49,6 +49,7 @@
 #include <Adafruit_LSM6DSO32.h>
 #include <UbloxGPS.h>
 #include <UbxGpsConfig.h>
+#include <BMI088.h>
 
 // GPS pins, not that these are RX and TX on the microcontroller, NOT the GTU7 (i.e. GTU_RX_PIN goes to the TX pin on the GTU)
 #define GPS_SERIAL_PORT Serial2
@@ -64,11 +65,16 @@ SPIClass SPI1 = SPIClass();
 #define LIS_I2C_BUS  Wire
 #define LIS_CS   38
 
+#define BMI_SPI_BUS  SPI1
+
 // SPI chip select pins
 #define BMP_CS  0 // CS
 #define ADXL_CS 10
 #define ICM_CS  38
 #define LSM_I2C_ADDR 106U
+
+#define BMI_ACCEL_CS 14
+#define BMI_GYRO_CS  5
 
 // LED pins (not implemented)
 #define ONBOARD_LED_PIN 13
@@ -83,6 +89,8 @@ SPIClass SPI1 = SPIClass();
 #define ADXL_CHIP_ID 0xE5
 #define LSM_CHIP_ID  0x6C
 
+#define BMI_CHIP_ID  0x00
+
 // Define bit offsets for status bitmap
 #define ICM_STATUS_OFFSET  0
 #define BMP_STATUS_OFFSET  1
@@ -90,6 +98,8 @@ SPIClass SPI1 = SPIClass();
 #define LSM_STATUS_OFFSET  3
 #define SD_STATUS_OFFSET   4
 #define PYRO_STATUS_OFFSET 5
+
+#define BMI_STATUS_OFFSET  6 //just defining this for now
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Preprocessor directoves for EXPORT
@@ -148,6 +158,7 @@ class Shart {
     void initBMP388();
     void initADXL375();
     void initGTU7();
+    void initBMI088();
 
     // individual sensor collectors
     //void collectDataICM20948();
@@ -173,6 +184,8 @@ class Shart {
     //TeensyICM20948         icm  = TeensyICM20948(ICM_CS, &ICM_SPI_BUS);
     Adafruit_LSM6DSO32     lsm  = Adafruit_LSM6DSO32();
     Adafruit_LIS3MDL       lis  = Adafruit_LIS3MDL();
+    Bmi088Accel      bmi_accel  = Bmi088Accel(BMI_SPI_BUS, BMI_ACCEL_CS);
+    Bmi088Gyro       bmi_gyro   = Bmi088Gyro(BMI_SPI_BUS, BMI_GYRO_CS);
 
     // Component statuses, note: We only care about components that need to be initialized! 
     Status BMPStatus  = UNINITIALIZED;
