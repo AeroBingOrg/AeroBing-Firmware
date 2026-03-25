@@ -15,7 +15,7 @@ void Shart::init() {
   initSD();
   
   // initialize sensors
-  initICM20948();
+  //initICM20948();
   initLSM6DSO32();
   initBMP388();
   initADXL375();
@@ -48,7 +48,7 @@ void Shart::collect() {
   collectTime();
 
   // Only collect data when sensors are marked as AVAILABLE
-  updateStatusICM20948();  if (ICMStatus  == AVAILABLE) collectDataICM20948();
+  //updateStatusICM20948();  if (ICMStatus  == AVAILABLE) collectDataICM20948();
   updateStatusBMP388();    if (BMPStatus  == AVAILABLE) collectDataBMP388();
   updateStatusADXL375();   if (ADXLStatus == AVAILABLE) collectDataADXL375();
   updateStatusLSM6DSO32(); if (LSMStatus  == AVAILABLE) collectDataLSM6DSO32();
@@ -121,6 +121,7 @@ bool Shart::getSystemStatus() {
     BMPStatus  == AVAILABLE &&
 		ICMStatus  == AVAILABLE &&
 		ADXLStatus == AVAILABLE &&
+    BMIStatus  == AVAILABLE &&
 		SDStatus   == AVAILABLE);
     
 }
