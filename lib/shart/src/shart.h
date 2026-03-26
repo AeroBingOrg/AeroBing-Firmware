@@ -51,21 +51,24 @@
 #include <UbxGpsConfig.h>
 #include <BMI088.h>
 
+#include <HardwareSerial.h>
 // GPS pins, not that these are RX and TX on the microcontroller, NOT the GTU7 (i.e. GTU_RX_PIN goes to the TX pin on the GTU)
-#define GPS_SERIAL_PORT Serial2
+//HardwareSerial poopSerial = HardwareSerial(0,1);
+#define GPS_SERIAL_PORT serial1
 #define GPS_BAUD_RATE   9600
 
 // SPI bus for BMP388, default SPI bus (shared)
-SPIClass SPI1 = SPIClass();
-#define BMP_SPI_BUS  SPI1
-#define ADXL_SPI_BUS SPI
-#define ICM_SPI_BUS  SPI1
+// SPIClass SPI_1 = SPIClass(10,2,3);
+#define BMI_SPI_BUS  spi1
+#define BMP_SPI_BUS  spi1
+#define ADXL_SPI_BUS spi2
+#define ICM_SPI_BUS  spi1
 #define LSM_I2C_BUS  Wire
-
 #define LIS_I2C_BUS  Wire
+
+
 #define LIS_CS   38
 
-#define BMI_SPI_BUS  SPI1
 
 // SPI chip select pins
 #define BMP_CS  0 // CS
@@ -102,8 +105,6 @@ SPIClass SPI1 = SPIClass();
 
 #define BMI_STATUS_OFFSET  6 //just defining this for now
 
-#define BMI_STATUS_OFFSET  6 //just defining this for now
-
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Preprocessor directoves for EXPORT
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -112,7 +113,7 @@ SPIClass SPI1 = SPIClass();
 #include "SdFat.h"
 
 // Definitions for radio
-#define RADIO_SERIAL_PORT  Serial8 // RX6 and TX6 on the teensy, see pinout for pin numbers
+#define RADIO_SERIAL_PORT  serial2//Serial8 // RX6 and TX6 on the teensy, see pinout for pin numbers
 #define RADIO_BAUD_RATE    115200//230400 // note that this has an impact on transmission speed
 #define RADIO_TIMEOUT_MS   1000 // Radio read timeout in milliseconds
 #define RADIO_SEND_EVERY_N 4
@@ -162,7 +163,6 @@ class Shart {
     void initADXL375();
     void initGTU7();
     void initBMI088();
-    void initBMI088();
 
     // individual sensor collectors
     //void collectDataICM20948();
@@ -183,17 +183,20 @@ class Shart {
     void updateStatusBMI088();
     void setStatusByte();
 
+    SPIClass spi1 = SPIClass(10,2,3);
+    SPIClass spi2 = SPIClass(1,2,3);
+    HardwareSerial serial1 = HardwareSerial(0,1);
+    HardwareSerial serial2 = HardwareSerial(0,1);
+
     // Sensor objects from respective libraries
-    UbloxGps<NavPvtPacket> gps  = UbloxGps<NavPvtPacket>(GPS_SERIAL_PORT);
+    UbloxGps<NavPvtPacket> gps  = UbloxGps<NavPvtPacket>(serial1);
     Adafruit_BMP3XX        bmp  = Adafruit_BMP3XX();
-    Adafruit_ADXL375       adxl = Adafruit_ADXL375(ADXL_CS, &ADXL_SPI_BUS);
+    Adafruit_ADXL375       adxl = Adafruit_ADXL375(ADXL_CS, &spi1);
     //TeensyICM20948         icm  = TeensyICM20948(ICM_CS, &ICM_SPI_BUS);
     Adafruit_LSM6DSO32     lsm  = Adafruit_LSM6DSO32();
     Adafruit_LIS3MDL       lis  = Adafruit_LIS3MDL();
-    Bmi088Accel      bmi_accel  = Bmi088Accel(BMI_SPI_BUS, BMI_ACCEL_CS);
-    Bmi088Gyro       bmi_gyro   = Bmi088Gyro(BMI_SPI_BUS, BMI_GYRO_CS);
-    Bmi088Accel      bmi_accel  = Bmi088Accel(BMI_SPI_BUS, BMI_ACCEL_CS);
-    Bmi088Gyro       bmi_gyro   = Bmi088Gyro(BMI_SPI_BUS, BMI_GYRO_CS);
+    Bmi088Accel      bmi_accel  = Bmi088Accel(spi1, BMI_ACCEL_CS);
+    Bmi088Gyro       bmi_gyro   = Bmi088Gyro(spi1, BMI_GYRO_CS);
 
     // Component statuses, note: We only care about components that need to be initialized! 
     Status BMPStatus  = UNINITIALIZED;

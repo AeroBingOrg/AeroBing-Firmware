@@ -2,8 +2,11 @@
 
 void Shart::initGTU7() {
   // Config code seems to always work but will fail silently if not, maybe modify the library to wait for acknowledgement
-  UbxGpsConfig<HardwareSerial, usb_serial_class> *ubxGpsConfig = 
-    new UbxGpsConfig<HardwareSerial, usb_serial_class>(GPS_SERIAL_PORT, USB_SERIAL_PORT);
+  // UbxGpsConfig<HardwareSerial, usb_serial_class> *ubxGpsConfig = 
+  //   new UbxGpsConfig<HardwareSerial, usb_serial_class>(GPS_SERIAL_PORT, USB_SERIAL_PORT);
+  UbxGpsConfig<HardwareSerial, HardwareSerial> *ubxGpsConfig = 
+    new UbxGpsConfig<HardwareSerial, HardwareSerial>(GPS_SERIAL_PORT, USB_SERIAL_PORT);
+  
   ubxGpsConfig->setBaudrate(GPS_BAUD_RATE);
   ubxGpsConfig->setMessage(UbxGpsConfigMessage::NavPvt);
   ubxGpsConfig->setRate(100);

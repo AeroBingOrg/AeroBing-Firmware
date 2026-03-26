@@ -87,7 +87,7 @@ void Shart::initRadio() {
 
   // Initialize radio serial port
   RADIO_SERIAL_PORT.begin(RADIO_BAUD_RATE);
-  RADIO_SERIAL_PORT.addMemoryForWrite(&bigassbuffer, sizeof(bigassbuffer));
+  //RADIO_SERIAL_PORT.addMemoryForWrite(&bigassbuffer, sizeof(bigassbuffer));
   RADIO_SERIAL_PORT.setTimeout(RADIO_TIMEOUT_MS);
 
   return;
