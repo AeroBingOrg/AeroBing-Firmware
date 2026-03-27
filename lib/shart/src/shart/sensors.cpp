@@ -63,8 +63,8 @@ void Shart::initLIS3MDL() {
   if (!lis.begin_I2C(LIS_CS, &LIS_I2C_BUS)) {          // hardware I2C mode, can pass in address & alt Wire
   //if (! lis3mdl.begin_SPI(LIS3MDL_CS)) {  // hardware SPI mode
   //if (! lis3mdl.begin_SPI(LIS3MDL_CS, LIS3MDL_CLK, LIS3MDL_MISO, LIS3MDL_MOSI)) { // soft SPI
-    UPDATE_STATUS(BMPStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
-    ERROR("BMP initialization failed!", MAIN_SERIAL_PORT)
+    /*UPDATE_STATUS(BMPStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
+    ERROR("BMP initialization failed!", MAIN_SERIAL_PORT)*/
   }
   lis.setPerformanceMode(LIS3MDL_MEDIUMMODE);
   lis.setOperationMode(LIS3MDL_CONTINUOUSMODE);
@@ -75,12 +75,12 @@ void Shart::initLIS3MDL() {
                           true, // polarity
                           false, // don't latch
                           true); // enabled!
-  UPDATE_STATUS(BMPStatus, AVAILABLE, MAIN_SERIAL_PORT)
+  //UPDATE_STATUS(BMPStatus, AVAILABLE, MAIN_SERIAL_PORT)
 }
 
 // Initialize the BMP SPI connection
 // TODO: consider power cycling to avoid issues with clock synchronization
-void Shart::initBMP388() {
+/* void Shart::initBMP388() {
 
   // Initialize in hardware SPI mode
   //delay(100);
@@ -89,7 +89,7 @@ void Shart::initBMP388() {
     UPDATE_STATUS(BMPStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
     ERROR("BMP initialization failed!", MAIN_SERIAL_PORT)
     return;
-  }
+  } 
 
   // Turn off oversampling, instead just take data at 200Hz (we can process noise later)
   //bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
@@ -99,7 +99,7 @@ void Shart::initBMP388() {
 
   UPDATE_STATUS(BMPStatus, AVAILABLE, MAIN_SERIAL_PORT)
 
-}
+} */
 
 
 // ADXL375 range is fixed at +/-200G
@@ -127,6 +127,17 @@ void Shart::initBMI088() {
   UPDATE_STATUS(BMIStatus, AVAILABLE, MAIN_SERIAL_PORT);
 }
 
+void Shart::initMS5611() {
+
+  if (!ms.begin()) {
+    UPDATE_STATUS(MSStatus, UNINITIALIZED, MAIN_SERIAL_PORT);
+    ERROR("MS initialization failed!", MAIN_SERIAL_PORT);
+    return;
+  }
+
+  UPDATE_STATUS(MSStatus, AVAILABLE, MAIN_SERIAL_PORT);
+
+}
 /*******************************************************************************
 * Status checkers
 *
@@ -135,7 +146,7 @@ void Shart::initBMI088() {
 *
 *******************************************************************************/
 
-void Shart::updateStatusBMP388() {
+/* void Shart::updateStatusBMP388() {
 
   // The chipID() function has been modified to ACTUALLY read the chip_id register
   if (bmp.chipID() != BMP_CHIP_ID) {
@@ -145,7 +156,7 @@ void Shart::updateStatusBMP388() {
   }
 
   UPDATE_STATUS(BMPStatus, AVAILABLE, MAIN_SERIAL_PORT);
-}
+} */
 
 // See if icm is connected (under the covers, checks device id)
 void Shart::updateStatusLIS3MDL() {
@@ -195,6 +206,17 @@ void Shart::updateStatusBMI088() {
   UPDATE_STATUS(BMIStatus, AVAILABLE, MAIN_SERIAL_PORT);
 }
 
+void Shart::updateStatusMS5611() {
+  
+  if (ms.getDeviceID() != MS_DEVICE_ID) {
+    UPDATE_STATUS(MSStatus, UNAVAILABLE, MAIN_SERIAL_PORT);
+    ERROR("MS not found!", MAIN_SERIAL_PORT);
+    return;
+  }
+
+  UPDATE_STATUS(MSStatus, AVAILABLE, MAIN_SERIAL_PORT);
+  
+}
 /*******************************************************************************
 * Collectors
 *
@@ -271,14 +293,14 @@ void Shart::collectDataLIS3MDL() {
 
 // collect data from the BMP388 over SPI
 // VERY IMPORTANT: "the_sensor.settings.op_mode = BMP3_MODE_NORMAL" in begin_SPI in Adafruit_BMP3XX.cpp or else very slow
-void Shart::collectDataBMP388() {
+/* void Shart::collectDataBMP388() {
 
   // take temperature and pressure, ignore altitude estimate to avoid expensive calculations
   bmp.performReading();
   sensor_packet.data.temp = bmp.temperature; // in *C
   sensor_packet.data.pres = bmp.pressure; // in HPa
 
-}
+} */
 
 void Shart::collectDataBMI088() {
 
@@ -292,4 +314,12 @@ void Shart::collectDataBMI088() {
   sensor_packet.data.gyr_y = bmi_gyro.getGyroY_rads();
   sensor_packet.data.gyr_z = bmi_gyro.getGyroZ_rads(); 
 
+}
+
+void Shart::collectDataMS5611() {
+
+  ms.read();
+  sensor_packet.data.temp = ms.getTemperature();
+  sensor_packet.data.pres = ms.getPressurePascal(); //in Pa
+  
 }

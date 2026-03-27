@@ -17,9 +17,10 @@ void Shart::init() {
   // initialize sensors
   //initICM20948();
   initLSM6DSO32();
-  initBMP388();
+  //initBMP388();
   initADXL375();
   initBMI088();
+  initMS5611();
 
   
   initGTU7();
@@ -50,10 +51,11 @@ void Shart::collect() {
 
   // Only collect data when sensors are marked as AVAILABLE
   //updateStatusICM20948();  if (ICMStatus  == AVAILABLE) collectDataICM20948();
-  updateStatusBMP388();    if (BMPStatus  == AVAILABLE) collectDataBMP388();
+  //updateStatusBMP388();    if (BMPStatus  == AVAILABLE) collectDataBMP388();
   updateStatusADXL375();   if (ADXLStatus == AVAILABLE) collectDataADXL375();
   updateStatusLSM6DSO32(); if (LSMStatus  == AVAILABLE) collectDataLSM6DSO32();
   updateStatusBMI088();    if (BMIStatus == AVAILABLE)  collectDataBMI088();
+  updateStatusMS5611();    if (MSStatus == AVAILABLE)   collectDataMS5611();
   collectDataGTU7(); // GPS status doesn't matter here
 
   setStatusByte();
@@ -79,11 +81,12 @@ void Shart::reconnect() {
 
   #ifdef ATTEMPT_RECONNECT
   // reconnect storage and sensors
-  if (getStatusBMP388()    == UNINITIALIZED) initBMP388();
+  //if (getStatusBMP388()    == UNINITIALIZED) initBMP388();
   if (getStatusADXL375()   == UNINITIALIZED) initADXL375();
   if (getStatusICM20948()  == UNINITIALIZED) initICM20948();
   if (getStatusLSM6DSO32() == UNINITIALIZED) initLSM6DSO32();
-  //if (getStatusBMI088()    == UNINITIALIZED) initBMI088();
+  if (getStatusBMI088()    == UNINITIALIZED) initBMI088();
+  if (getStatusMS5611()    == UNINITIALIZED) initMS5611();
 
   #endif
   
@@ -121,10 +124,11 @@ void Shart::maybeFinish() {
 bool Shart::getSystemStatus() {
 
 	return (
-    BMPStatus  == AVAILABLE &&
+    //BMPStatus  == AVAILABLE &&
 		ICMStatus  == AVAILABLE &&
 		ADXLStatus == AVAILABLE &&
     BMIStatus  == AVAILABLE &&
+    MSStatus   == AVAILABLE &&
 		SDStatus   == AVAILABLE);
     
 }
@@ -133,11 +137,12 @@ bool Shart::getSystemStatus() {
 void Shart::setStatusByte() {
   sensor_packet.data.status = 0;
   sensor_packet.data.status |= (ICMStatus == AVAILABLE)  << ICM_STATUS_OFFSET;
-  sensor_packet.data.status |= (BMPStatus == AVAILABLE)  << BMP_STATUS_OFFSET;
+  //sensor_packet.data.status |= (BMPStatus == AVAILABLE)  << BMP_STATUS_OFFSET;
   sensor_packet.data.status |= (ADXLStatus == AVAILABLE) << ADXL_STATUS_OFFSET;
   sensor_packet.data.status |= (LSMStatus == AVAILABLE)  << LSM_STATUS_OFFSET;
   sensor_packet.data.status |= (SDStatus == AVAILABLE)   << SD_STATUS_OFFSET;
   sensor_packet.data.status |= (BMIStatus == AVAILABLE)  << BMI_STATUS_OFFSET;
+  sensor_packet.data.status |= (MSStatus == AVAILABLE)   << MS_STATUS_OFFSET;
   sensor_packet.data.status |= (analogRead(41) > 712) << PYRO_STATUS_OFFSET;
   sensor_packet.data.reserved = sd_file_opened;
 }

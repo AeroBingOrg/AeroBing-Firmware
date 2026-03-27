@@ -50,6 +50,7 @@
 #include <UbloxGPS.h>
 #include <UbxGpsConfig.h>
 #include <BMI088.h>
+#include <MS5611.h>
 
 #include <HardwareSerial.h>
 // GPS pins, not that these are RX and TX on the microcontroller, NOT the GTU7 (i.e. GTU_RX_PIN goes to the TX pin on the GTU)
@@ -60,7 +61,8 @@
 // SPI bus for BMP388, default SPI bus (shared)
 // SPIClass SPI_1 = SPIClass(10,2,3);
 #define BMI_SPI_BUS  spi1
-#define BMP_SPI_BUS  spi1
+//#define BMP_SPI_BUS  spi1
+#define MS_I2C_BUS   Wire
 #define ADXL_SPI_BUS spi2
 #define ICM_SPI_BUS  spi1
 #define LSM_I2C_BUS  Wire
@@ -71,39 +73,40 @@
 
 
 // SPI chip select pins
-#define BMP_CS  0 // CS
+//#define BMP_CS  0 // CS
+#define MS_I2C_ADDR 0x76 // 0x76 to connect to vdd, 0x77 to connect to gnd
 #define ADXL_CS 10
 #define ICM_CS  38
 #define LSM_I2C_ADDR 106U
-
 #define BMI_ACCEL_CS 14
 #define BMI_GYRO_CS  5
+
 
 // LED pins (not implemented)
 #define ONBOARD_LED_PIN 13
 #define OK_LED_PIN 23
-#define BMP_LED_PIN 22
+//#define BMP_LED_PIN 22
 #define JY_LED_PIN 21
 #define SD_LED_PIN 20
 
 // Chip IDs for checking connectivity
 #define BNO_CHIP_ID  0xA0
-#define BMP_CHIP_ID  0x60
+//#define BMP_CHIP_ID  0x60
+#define MS_DEVICE_ID 0x00 // ms5611 doesnt have chip id so not implemented yet cuz it requires calculations
 #define ADXL_CHIP_ID 0xE5
 #define LSM_CHIP_ID  0x6C
-
 #define BMI_ACCEL_CHIP_ID 0x1E
 #define BMI_GYRO_CHIP_ID  0x0F
 
 // Define bit offsets for status bitmap
 #define ICM_STATUS_OFFSET  0
-#define BMP_STATUS_OFFSET  1
-#define ADXL_STATUS_OFFSET 2
-#define LSM_STATUS_OFFSET  3
-#define SD_STATUS_OFFSET   4
-#define PYRO_STATUS_OFFSET 5
-
-#define BMI_STATUS_OFFSET  6 //just defining this for now
+//#define BMP_STATUS_OFFSET  1 
+#define ADXL_STATUS_OFFSET 1
+#define LSM_STATUS_OFFSET  2
+#define SD_STATUS_OFFSET   3
+#define PYRO_STATUS_OFFSET 4
+#define BMI_STATUS_OFFSET  5
+#define MS_STATUS_OFFSET   6
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Preprocessor directoves for EXPORT
@@ -159,28 +162,31 @@ class Shart {
     //void initICM20948();
     void initLIS3MDL();
     void initLSM6DSO32();
-    void initBMP388();
+    //void initBMP388();
     void initADXL375();
     void initGTU7();
     void initBMI088();
+    void initMS5611();
 
     // individual sensor collectors
     //void collectDataICM20948();
     void collectDataLIS3MDL();
     void collectDataLSM6DSO32();
-    void collectDataBMP388();
+    //void collectDataBMP388();
     void collectDataADXL375();
     void collectDataGTU7();
     void collectDataBMI088();
+    void collectDataMS5611();
     void collectTime();
     
     // These perform simple checks on the sensors to tell if they are connected
     // If a sensor is not connected, we do not want to try to collect data from it.
     void updateStatusLIS3MDL();
-    void updateStatusBMP388();
+    //void updateStatusBMP388();
     void updateStatusADXL375();
     void updateStatusLSM6DSO32();
     void updateStatusBMI088();
+    void updateStatusMS5611();
     void setStatusByte();
 
     SPIClass spi1 = SPIClass(10,2,3);
@@ -190,7 +196,7 @@ class Shart {
 
     // Sensor objects from respective libraries
     UbloxGps<NavPvtPacket> gps  = UbloxGps<NavPvtPacket>(serial1);
-    Adafruit_BMP3XX        bmp  = Adafruit_BMP3XX();
+    //Adafruit_BMP3XX        bmp  = Adafruit_BMP3XX();
     Adafruit_ADXL375       adxl = Adafruit_ADXL375(ADXL_CS, &spi1);
     //TeensyICM20948         icm  = TeensyICM20948(ICM_CS, &ICM_SPI_BUS);
     Adafruit_LSM6DSO32     lsm  = Adafruit_LSM6DSO32();
@@ -198,12 +204,16 @@ class Shart {
     Bmi088Accel      bmi_accel  = Bmi088Accel(spi1, BMI_ACCEL_CS);
     Bmi088Gyro       bmi_gyro   = Bmi088Gyro(spi1, BMI_GYRO_CS);
 
+    MS5611                  ms  = MS5611(MS5611_DEFAULT_ADDRESS, &MS_I2C_BUS);
+
     // Component statuses, note: We only care about components that need to be initialized! 
-    Status BMPStatus  = UNINITIALIZED;
+    //Status BMPStatus  = UNINITIALIZED;
     Status ICMStatus  = UNINITIALIZED;
     Status ADXLStatus = UNINITIALIZED;
     Status LSMStatus  = UNINITIALIZED;
     Status BMIStatus  = UNINITIALIZED;
+
+    Status MSStatus   = UNINITIALIZED;
 
     uint32_t chipTimeOffset;
 
