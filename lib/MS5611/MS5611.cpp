@@ -1,10 +1,9 @@
 //
-//    FILE: MS5611.cpp
+//    FILE: MS5611_SPI.cpp
 //  AUTHOR: Rob Tillaart
-//          Erni - testing/fixes
-// VERSION: 0.5.1
-// PURPOSE: Arduino library for MS5611 (I2C) temperature and pressure sensor
-//     URL: https://github.com/RobTillaart/MS5611
+// VERSION: 0.4.1
+// PURPOSE: Arduino library for MS5611 (SPI) temperature and pressure sensor
+//     URL: https://github.com/RobTillaart/MS5611_SPI
 
 
 #include "MS5611.h"
@@ -22,10 +21,9 @@
 //
 //  PUBLIC
 //
-MS5611::MS5611(uint8_t deviceAddress, TwoWire * wire)
+MS5611_SPI::MS5611_SPI(uint8_t select, __SPI_CLASS__ * mySPI)
 {
-  _address           = deviceAddress;
-  _wire              = wire;
+  //  _address           = deviceAddress;  // TODO
   _samplingRate      = OSR_ULTRA_LOW;
   _temperature       = MS5611_NOT_READ;
   _pressure          = MS5611_NOT_READ;
@@ -35,30 +33,79 @@ MS5611::MS5611(uint8_t deviceAddress, TwoWire * wire)
   _pressureOffset    = 0;
   _temperatureOffset = 0;
   _compensation      = true;
+
+  //  SPI
+  _select   = select;
+  _dataIn   = 255;
+  _dataOut  = 255;
+  _clock    = 255;
+  _hwSPI    = true;
+  _mySPI    = mySPI;
 }
 
 
-bool MS5611::begin()
+MS5611_SPI::MS5611_SPI(uint8_t select, uint8_t dataOut, uint8_t dataIn, uint8_t clock)
 {
-  if ((_address < 0x76) || (_address > 0x77)) return false;
-  if (! isConnected()) return false;
+  //  _address           = deviceAddress;  // TODO
+  _samplingRate      = OSR_ULTRA_LOW;
+  _temperature       = MS5611_NOT_READ;
+  _pressure          = MS5611_NOT_READ;
+  _result            = MS5611_NOT_READ;
+  _lastRead          = 0;
+  _deviceID          = 0;
+  _pressureOffset    = 0;
+  _temperatureOffset = 0;
+  _compensation      = false;
+
+  //  SPI
+  _select   = select;
+  _dataIn   = dataIn;
+  _dataOut  = dataOut;
+  _clock    = clock;
+  _hwSPI    = false;
+  _mySPI    = NULL;
+}
+
+
+bool MS5611_SPI::begin()
+{
+  //  print experimental message.
+  //  Serial.println(MS5611_SPI_LIB_VERSION);
+
+  pinMode(_select, OUTPUT);
+  digitalWrite(_select, HIGH);
+
+  setSPIspeed(_SPIspeed);
+
+  if(_hwSPI)
+  {
+    //  _mySPI->begin();  //  FIX #6  
+    //  _mySPI->end();
+    //  _mySPI->begin();
+    //  delay(1);
+  }
+  else
+  {
+    //  Serial.println("SW_SPI");
+    pinMode(_dataIn,  INPUT);
+    pinMode(_dataOut, OUTPUT);
+    pinMode(_clock,   OUTPUT);
+    digitalWrite(_dataOut, LOW);
+    digitalWrite(_clock,   LOW);
+  }
 
   return reset(0);  //  MS5611 has mathMode 0, see datasheet + initConstants.
 }
 
 
-bool MS5611::isConnected()
+bool MS5611_SPI::isConnected()
 {
-  _wire->beginTransmission(_address);
-   #ifdef ARDUINO_ARCH_NRF52840
-   //  needed for NANO 33 BLE
-  _wire->write(0);
-   #endif
-  return (_wire->endTransmission() == 0);
+  int rv = read();
+  return (rv == MS5611_READ_OK);
 }
 
 
-bool MS5611::reset(uint8_t mathMode)
+bool MS5611_SPI::reset(uint8_t mathMode)
 {
   command(MS5611_CMD_RESET);
   uint32_t start = micros();
@@ -95,7 +142,7 @@ bool MS5611::reset(uint8_t mathMode)
 }
 
 
-int MS5611::read(uint8_t bits)
+int MS5611_SPI::read(uint8_t bits)
 {
   //  VARIABLES NAMES BASED ON DATASHEET
   //  ALL MAGIC NUMBERS ARE FROM DATASHEET
@@ -157,19 +204,19 @@ int MS5611::read(uint8_t bits)
 }
 
 
-void MS5611::setOversampling(osr_t samplingRate)
+void MS5611_SPI::setOversampling(osr_t samplingRate)
 {
   _samplingRate = (uint8_t) samplingRate;
 }
 
 
-osr_t MS5611::getOversampling() const
+osr_t MS5611_SPI::getOversampling() const
 {
   return (osr_t) _samplingRate;
 }
 
 
-float MS5611::getTemperature() const
+float MS5611_SPI::getTemperature() const
 {
   if (_temperatureOffset == 0) return _temperature * 0.01;
   return _temperature * 0.01 + _temperatureOffset;
@@ -177,7 +224,7 @@ float MS5611::getTemperature() const
 
 
 //  milliBar
-float MS5611::getPressure() const
+float MS5611_SPI::getPressure() const
 {
   if (_pressureOffset == 0) return _pressure * 0.01;
   return _pressure * 0.01 + _pressureOffset;
@@ -185,31 +232,31 @@ float MS5611::getPressure() const
 
 
 //  Pascal SI-unit.
-float MS5611::getPressurePascal() const
+float MS5611_SPI::getPressurePascal() const
 {
   if (_pressureOffset == 0) return _pressure;
   return _pressure + _pressureOffset * 100.0;
 }
 
-void MS5611::setPressureOffset(float offset)
+void MS5611_SPI::setPressureOffset(float offset)
 {
   _pressureOffset = offset;
 }
 
 
-float MS5611::getPressureOffset()
+float MS5611_SPI::getPressureOffset()
 {
   return _pressureOffset;
 }
 
 
-void MS5611::setTemperatureOffset(float offset)
+void MS5611_SPI::setTemperatureOffset(float offset)
 {
   _temperatureOffset = offset;
 }
 
 
-float MS5611::getTemperatureOffset()
+float MS5611_SPI::getTemperatureOffset()
 {
   return _temperatureOffset;
 }
@@ -219,7 +266,7 @@ float MS5611::getTemperatureOffset()
 //  https://www.mide.com/air-pressure-at-altitude-calculator
 //  https://community.bosch-sensortec.com/t5/Question-and-answers/How-to-calculate-the-altitude-from-the-pressure-sensor-data/qaq-p/5702 (stale link).
 //  https://en.wikipedia.org/wiki/Pressure_altitude
-float MS5611::getAltitude(float airPressure)
+float MS5611_SPI::getAltitude(float airPressure)
 {
   //  NOTE: _pressure is in Pascal (#44) and airPressure is in mBar.
   float ratio = _pressure * 0.01 / airPressure;
@@ -227,7 +274,7 @@ float MS5611::getAltitude(float airPressure)
 }
 
 
-float MS5611::getAltitudeFeet(float airPressure)
+float MS5611_SPI::getAltitudeFeet(float airPressure)
 {
   float ratio = _pressure * 0.01 / airPressure;
   return 145366.45 * (1 - pow(ratio, 0.190284));
@@ -235,7 +282,7 @@ float MS5611::getAltitudeFeet(float airPressure)
 
 
 //  returns mBar; pressure == mBar; altitude == meter
-float MS5611::getSeaLevelPressure(float pressure, float altitude)
+float MS5611_SPI::getSeaLevelPressure(float pressure, float altitude)
 {
   float x = 1 - altitude * 2.256944358E-5;  //  == altitude / 44307.694
   float ratio = pow(x, 5.2553026);          //  == (1.0 / 0.190284));
@@ -244,58 +291,77 @@ float MS5611::getSeaLevelPressure(float pressure, float altitude)
 }
 
 
-int MS5611::getLastResult() const
+int MS5611_SPI::getLastResult() const
 {
   return _result;
 }
 
 
-uint32_t MS5611::lastRead() const
+uint32_t MS5611_SPI::lastRead() const
 {
   return _lastRead;
 }
 
 
-uint32_t MS5611::getDeviceID() const
+uint32_t MS5611_SPI::getDeviceID() const
 {
   return _deviceID;
 }
 
 
-void MS5611::setCompensation(bool flag)
+void MS5611_SPI::setCompensation(bool flag)
 {
   _compensation = flag;
 }
 
 
-bool MS5611::getCompensation()
+bool MS5611_SPI::getCompensation()
 {
   return _compensation;
 }
 
 
 //       EXPERIMENTAL
-uint16_t MS5611::getManufacturer()
+uint16_t MS5611_SPI::getManufacturer()
 {
   return readProm(0);
 }
 
 //       EXPERIMENTAL
-uint16_t MS5611::getSerialCode()
+uint16_t MS5611_SPI::getSerialCode()
 {
   return readProm(7) >> 4;
 }
 
 //       DEVELOP
-uint16_t MS5611::getProm(uint8_t index)
+uint16_t MS5611_SPI::getProm(uint8_t index)
 {
   return readProm(index);
 }
 
 //       DEVELOP
-uint16_t MS5611::getCRC()
+uint16_t MS5611_SPI::getCRC()
 {
   return readProm(7) & 0x0F;
+}
+
+
+void MS5611_SPI::setSPIspeed(uint32_t speed)
+{
+  _SPIspeed = speed;
+  _spi_settings = SPISettings(_SPIspeed, MSBFIRST, SPI_MODE0);
+}
+
+
+uint32_t MS5611_SPI::getSPIspeed()
+{
+  return _SPIspeed;
+}
+
+
+bool MS5611_SPI::usesHWSPI()
+{
+  return _hwSPI;
 }
 
 
@@ -303,7 +369,7 @@ uint16_t MS5611::getCRC()
 //
 //  PROTECTED
 //
-void MS5611::convert(const uint8_t addr, uint8_t bits)
+void MS5611_SPI::convert(const uint8_t addr, uint8_t bits)
 {
   uint8_t index = bits;
   if (index < 8) index = 8;
@@ -326,61 +392,110 @@ void MS5611::convert(const uint8_t addr, uint8_t bits)
 }
 
 
-uint16_t MS5611::readProm(uint8_t reg)
+uint16_t MS5611_SPI::readProm(uint8_t reg)
 {
   //  last EEPROM register is CRC - Page 13 datasheet.
   uint8_t promCRCRegister = 7;
   if (reg > promCRCRegister) return 0;
 
-  uint8_t offset = reg * 2;
-  command(MS5611_CMD_READ_PROM + offset);
-  if (_result == 0)
+  uint16_t value = 0;
+  digitalWrite(_select, LOW);
+  if (_hwSPI)
   {
-    uint8_t length = 2;
-    int bytes = _wire->requestFrom(_address, length);
-    if (bytes >= length)
-    {
-      uint16_t value = _wire->read() * 256;
-      value += _wire->read();
-      return value;
-    }
-    return 0;
+    _mySPI->beginTransaction(_spi_settings);
+    _mySPI->transfer(MS5611_CMD_READ_PROM + reg * 2);
+    value += _mySPI->transfer(0x00);
+    value <<= 8;
+    value += _mySPI->transfer(0x00);
+    _mySPI->endTransaction();
   }
+  else      //  Software SPI
+  {
+    swSPI_transfer(MS5611_CMD_READ_PROM + reg * 2);
+    value += swSPI_transfer(0x00);
+    value <<= 8;
+    value += swSPI_transfer(0x00);
+  }
+  digitalWrite(_select, HIGH);
+  return value;
+}
+
+
+uint32_t MS5611_SPI::readADC()
+{
+  //  command(MS5611_CMD_READ_ADC);
+
+  uint32_t value = 0;
+
+  digitalWrite(_select, LOW);
+  if (_hwSPI)
+  {
+    _mySPI->beginTransaction(_spi_settings);
+    _mySPI->transfer(0x00);
+    value += _mySPI->transfer(0x00);
+    value <<= 8;
+    value += _mySPI->transfer(0x00);
+    value <<= 8;
+    value += _mySPI->transfer(0x00);
+    _mySPI->endTransaction();
+  }
+  else      //  Software SPI
+  {
+    swSPI_transfer(0x00);
+    value += swSPI_transfer(0x00);
+    value <<= 8;
+    value += swSPI_transfer(0x00);
+    value <<= 8;
+    value += swSPI_transfer(0x00);
+  }
+  digitalWrite(_select, HIGH);
+  //  Serial.println(value, HEX);
+  return value;
+}
+
+
+int MS5611_SPI::command(const uint8_t command)
+{
+  yield();
+  digitalWrite(_select, LOW);
+  if (_hwSPI)
+  {
+    _mySPI->beginTransaction(_spi_settings);
+    _mySPI->transfer(command);
+    _mySPI->endTransaction();
+  }
+  else      //  Software SPI
+  {
+    swSPI_transfer(command);
+  }
+  digitalWrite(_select, HIGH);
   return 0;
 }
 
 
-uint32_t MS5611::readADC()
+//  simple one mode version
+uint8_t MS5611_SPI::swSPI_transfer(uint8_t val)
 {
-  command(MS5611_CMD_READ_ADC);
-  if (_result == 0)
+  uint8_t clk = _clock;
+  uint8_t dao = _dataOut;
+  uint8_t dai = _dataIn;
+  uint8_t value = 0;
+  for (uint8_t mask = 0x80; mask; mask >>= 1)
   {
-    uint8_t length = 3;
-    int bytes = _wire->requestFrom(_address, length);
-    if (bytes >= length)
-    {
-      uint32_t value = _wire->read() * 65536UL;
-      value += _wire->read() * 256UL;
-      value += _wire->read();
-      return value;
-    }
-    return 0UL;
+    digitalWrite(dao,(val & mask));
+    digitalWrite(clk, HIGH);
+    value <<= 1;
+    if (digitalRead(dai) != 0) value += 1;
+    digitalWrite(clk, LOW);
   }
-  return 0UL;
+  digitalWrite(dao, LOW);
+  //  Serial.print(" # ");
+  //  Serial.println(value, HEX);
+  return value;
 }
 
 
-int MS5611::command(const uint8_t command)
-{
-  yield();
-  _wire->beginTransmission(_address);
-  _wire->write(command);
-  _result = _wire->endTransmission();
-  return _result;
-}
-
-
-void MS5611::initConstants(uint8_t mathMode)
+void MS5611_SPI::initConstants(uint8_t mathMode)
 {
   //  constants that were multiplied in read() - datasheet page 8
   //  do this once and you save CPU cycles
@@ -409,20 +524,7 @@ void MS5611::initConstants(uint8_t mathMode)
 //
 //  DERIVED CLASSES
 //
-MS5607::MS5607(uint8_t deviceAddress, TwoWire *wire)
-      : MS5611(deviceAddress, wire)
-{
-}
-
-
-bool MS5607::begin()
-{
-  if ((_address < 0x76) || (_address > 0x77)) return false;
-  if (! isConnected()) return false;
-
-  return reset(1);  //  MS5607 has mathMode 1, see datasheet + initConstants.
-}
+//  TODO ?
 
 
 //  -- END OF FILE --
-

@@ -1,34 +1,55 @@
 
-[![Arduino CI](https://github.com/RobTillaart/MS5611/workflows/Arduino%20CI/badge.svg)](https://github.com/marketplace/actions/arduino_ci)
-[![Arduino-lint](https://github.com/RobTillaart/MS5611/actions/workflows/arduino-lint.yml/badge.svg)](https://github.com/RobTillaart/MS5611/actions/workflows/arduino-lint.yml)
-[![JSON check](https://github.com/RobTillaart/MS5611/actions/workflows/jsoncheck.yml/badge.svg)](https://github.com/RobTillaart/MS5611/actions/workflows/jsoncheck.yml)
-[![GitHub issues](https://img.shields.io/github/issues/RobTillaart/MS5611.svg)](https://github.com/RobTillaart/MS5611/issues)
+[![Arduino CI](https://github.com/RobTillaart/MS5611_SPI/workflows/Arduino%20CI/badge.svg)](https://github.com/marketplace/actions/arduino_ci)
+[![Arduino-lint](https://github.com/RobTillaart/MS5611_SPI/actions/workflows/arduino-lint.yml/badge.svg)](https://github.com/RobTillaart/MS5611_SPI/actions/workflows/arduino-lint.yml)
+[![JSON check](https://github.com/RobTillaart/MS5611_SPI/actions/workflows/jsoncheck.yml/badge.svg)](https://github.com/RobTillaart/MS5611_SPI/actions/workflows/jsoncheck.yml)
+[![GitHub issues](https://img.shields.io/github/issues/RobTillaart/MS5611_SPI.svg)](https://github.com/RobTillaart/MS5611_SPI/issues)
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/RobTillaart/MS5611/blob/master/LICENSE)
-[![GitHub release](https://img.shields.io/github/release/RobTillaart/MS5611.svg?maxAge=3600)](https://github.com/RobTillaart/MS5611/releases)
-[![PlatformIO Registry](https://badges.registry.platformio.org/packages/robtillaart/library/MS5611.svg)](https://registry.platformio.org/libraries/robtillaart/MS5611)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/RobTillaart/MS5611_SPI/blob/master/LICENSE)
+[![GitHub release](https://img.shields.io/github/release/RobTillaart/MS5611_SPI.svg?maxAge=3600)](https://github.com/RobTillaart/MS5611_SPI/releases)
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/robtillaart/library/MS5611_SPI.svg)](https://registry.platformio.org/libraries/robtillaart/MS5611_SPI)
 
 
-# MS5611
+# MS5611_SPI
 
-Arduino library (I2C) for MS5611 temperature and pressure sensor.
+Arduino library (SPI) for MS5611 temperature and pressure sensor.
 
 
 ## Description
 
-The MS5611-01BA03 is a high resolution pressure and temperature sensor a.k.a GY-63.
+**WARNING: the MS5611 has problems with self heating when using SPI interface so use with care.**
+
+The MS5611 is a high resolution pressure and temperature sensor a.k.a GY-63.
 The high resolution is made possible by oversampling many times.
 
-The device address is 0x76 or 0x77 depending on the CSB/CSO pin.
+This library only implements the SPI interface.
+It is based upon the 0.3.6 version of the I2C library, 
+see - https://github.com/RobTillaart/MS5611
 
-This library only implements the I2C interface. 
-An experimental SPI version of the library can be found here 
-- https://github.com/RobTillaart/MS5611_SPI
-
-A derived I2C library for the STM32 can be found here
-- https://github.com/Zakrzewiaczek/ms5611-stm32
+If you know a cause or better a solution to the self heating effect, 
+please let me know (open an issue).
 
 Feedback as always is welcome.
+
+
+### 0.4.0 Breaking change
+
+As the getAltitude() function had a bug it is advised to use version 0.4.0 or up.
+Older versions are considered obsolete.
+
+
+### 0.3.0 Breaking change
+
+Version 0.3.0 introduced a breaking change to improve handling the SPI dependency.
+The user has to call **SPI.begin()** or equivalent before calling **AD.begin()**.
+Optionally the user can provide parameters to the **SPI.begin(...)**
+
+
+### 0.2.0 Breaking change
+
+The version 0.2.0 has breaking changes in the interface. 
+The essence is removal of ESP32 specific code from the library. 
+This makes it possible to support the ESP32-S3 and other processors in the future. 
+Also it makes the library a bit simpler to maintain.
 
 
 ### Compatibility
@@ -89,29 +110,6 @@ sensor for this (e.g. DS18B20).
 //
 ```
 
-## I2C
-
-The device address is 0x76 or 0x77 depending on the CSB/CSO pin.
-
-
-### I2C multiplexing
-
-Sometimes you need to control more devices than possible with the default
-address range the device provides.
-This is possible with an I2C multiplexer e.g. TCA9548 which creates up
-to eight channels (think of it as I2C subnets) which can use the complete
-address range of the device.
-
-Drawback of using a multiplexer is that it takes more administration in
-your code e.g. which device is on which channel.
-This will slow down the access, which must be taken into account when
-deciding which devices are on which channel.
-Also note that switching between channels will slow down other devices
-too if they are behind the multiplexer.
-
-- https://github.com/RobTillaart/TCA9548
-
-
 ### Related libraries
 
 - https://github.com/RobTillaart/pressure - pressure conversions
@@ -124,70 +122,69 @@ too if they are behind the multiplexer.
 - https://github.com/Zakrzewiaczek/ms5611-stm32 - derived library for STM32 boards.
 
 
-## Release Notes (major)
+## WARNING EXPERIMENTAL
 
-### 0.3.0 breaking change
+Note: This library is under development.
 
-- fixed math error so previous versions are **obsolete**.
-- temperature is a float expressed in degrees Celsius.
-- pressure is a float expressed in mBar.
+SPI communication works and reasonable values are read, at least for pressure.
 
+All SPI tests so far gave too high temperatures, some were rising slowly, others faster.
+Values are read correctly but somehow the selection of SPI as protocol seems to cause internal heating.
 
-### 0.3.5 NANO 33 BLE
+This self heating has been confirmed and is discussed - https://github.com/RobTillaart/MS5611_SPI/issues/3
 
-The I2C/Wire library of the NANO 33 BLE does not see the device on the I2C bus. 
-After hours of testing it looks like that the I2C/Wire library of the NANO 33 BLE 
-does not handle **isConnected()** like other platforms do. 
-Adding a **wire->write(0x00)** in **isConnected()** fixes the problem, 
-however more investigation is needed to understand the root cause.
+Some results of experiments:
 
-
-### 0.3.9 pressure math 
-
-There are MS5611 compatibles for which the math for the pressure is different.
-See **AN520__004: C-code example for MS56xx, MS57xx (except analog sensor), and MS58xx series pressure sensors**
-The difference is in the constants (powers of 2) used to calculate the pressure.
-
-The library implements **reset(uint8_t mathMode = 0)** to select the mathMode.
-- mathMode = 0 ==> datasheet type math  (default)
-- mathMode = 1 ==> Application notes type math.
-- other values will act as 0
-
-See issue #33.
+| Platform        | tested | time (us)| Notes   |
+|:----------------|-------:|:--------:|--------:|
+|  UNO SW SPI     |  fail  |          | temperature is rising very fast (stopped)  ==> DO NOT USE 5V 
+|  UNO HW SPI     |  fail  |          | no data, 
+|  ESP32 SW SPI V |   Y    |   1299   | VSPI pins; temperature is rising slowly
+|  ESP32 SW SPI H |   Y    |   1298   | HSPI pins; temperature too high (+3) but stable
+|  ESP32 HSPI     |   Y    |   1396   | temperature is rising slowly and stabilizes
+|  ESP32 VSPI     |   Y    |   1395   | temperature is rising slowly and stabilizes
+|  NANO 33 SW SPI |   -    |    -     | not tested yet
+|  NANO 33 HW SPI |   -    |    -     | not tested yet
 
 
-### 0.4.0 breaking change
+### Note UNO
 
-refactored the Wire dependency. Affected are:
-- constructor
-- begin()
-
-User has to call **Wire.begin()** (or equivalent) and optional set the I2C pins
-before calling **ms5611.begin()** to initialize the library.
+For VCC 3V3 was used as the other pins CLK and SDI have a voltage converter in the GY-63.
+- Unclear why HW SPI blocks for UNO. 
+- The 5V voltage is definitely too high for the sensor, but protocol wise it was expected to work.
+- it might be a timing issue as the ESP32 showed some improvement when "fiddle the timing"
 
 
-### 0.5.0 Breaking change
+### Note ESP32 
 
-As the getAltitude() function had a bug it is advised to use version 0.5.0 or up.
-Older versions are considered obsolete.
+H-SPI pins: 
+- not reliable at start, incorrect PROM reads, both HW and SW. 
+- adjusting the timing improves this a bit.
+- these pins also interfere with uploading sketches. 
+
+
+### Conclusion for now
+
+There are a few open ends to investigate.
+- investigate an UNO with a level converter (for selection pins)
+- investigate timing (clock) of the SPI. (both ESP and UNO)
+
+If you have experiences with this library please share them in the issues.
 
 
 ## Interface MS5611
 
 ```cpp
-#include "MS5611.h"
+#include "MS5611_SPI.h"
 ```
 
 ### Base
 
-- **MS5611(uint8_t deviceAddress = MS5611_DEFAULT_ADDRESS, TwoWire \*wire = &Wire)** constructor.
-Since 0.3.7 a default address 0x77 is added. Optionally one can set the Wire interface.
+- **MS5611_SPI(uint8_t select, SPIClassRP2040 \* myspi = &SPI)** constructor, HW SPI RP2040.
+- **MS5611_SPI(uint8_t select, SPIClass \* myspi = &SPI)** constructor, HW SPI other.
+- **MS5611_SPI(uint8_t select, uint8_t dataOut, uint8_t dataIn, uint8_t clock)** constructor, SW SPI.
 - **bool begin()** Initializes internals, by calling reset().
-Return false indicates either isConnected() error or reset() error.  
-One must call **Wire.begin()** (or equivalent) before calling **begin()**.
-- **bool isConnected()** checks availability of the device address set in the constructor 
-on the I2C bus. 
-(see note above NANO 33 BLE).
+- **bool isConnected()** checks device by calling **read()**.
 - **bool reset(uint8_t mathMode = 0)** resets the MS5611 device and loads the internal constants 
 from its ROM. 
 Returns false if ROM could not be read.
@@ -303,17 +300,30 @@ The default = true.
 Disabling the compensation will be slightly faster but you loose precision.
 - **getCompensation()** returns flag set above.
 
-----
 
-## Interface MS5607
+### SPI functions
 
-Interface is very identical to the MS5611.
+// to be tested.
 
-- **MS5607(uint8_t deviceAddress, TwoWire \*wire = &Wire)** constructor.
-Address = 0x76 or 0x77, it has no default. Optionally one can set the Wire interface.
-- **bool begin()**
-Initializes internals by calling reset() to set correct mathMode.
-Return false indicates either isConnected() error or reset() error.  
+- **void setSPIspeed(uint32_t speed)**
+- **uint32_t getSPIspeed()**
+- **bool usesHWSPI()**
+
+
+### SPI - ESP32 specific
+
+// to be tested.
+
+- **void selectHSPI()**
+- **void selectVSPI()**
+- **bool usesHSPI()**
+- **bool usesVSPI()**
+- **void setGPIOpins(uint8_t clk, uint8_t miso, uint8_t mosi, uint8_t select)**
+
+
+## Operation
+
+See examples
 
 
 ## Future
@@ -321,21 +331,13 @@ Return false indicates either isConnected() error or reset() error.
 #### Must
 
 - update documentation
-- sync with MS5611_SPI library
+- sync with MS5611 (I2C) library
+- investigate internal heating with SPI.
 
 #### Should
 
-- add / improve error handling.
 
 #### Could
-
-- define derived classes per device type
-  - MS56XX, MS57xx and MS58xx?
-  - add correct math
-- redo lower level functions?
-- handle the read + math of temperature first?
-- find meaning PROM values, esp. 0 and 7
-- add function to verify the CRC of the PROM
 
 
 #### Wont
@@ -348,4 +350,3 @@ Improve the quality of the libraries by providing issues and Pull Requests, or
 donate through PayPal or GitHub sponsors.
 
 Thank you,
-

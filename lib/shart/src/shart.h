@@ -35,6 +35,10 @@
 
 #ifndef SHART_H
 #define SHART_H
+
+// see WSerial.h may have to defien USBCON or USBD_USE_CDC
+#define USBCON
+#define USBD_USE_CDC
  
 #include "shart/util/status_enums.h"
 #include "shart/util/debug.h"
@@ -54,33 +58,44 @@
 
 #include <HardwareSerial.h>
 // GPS pins, not that these are RX and TX on the microcontroller, NOT the GTU7 (i.e. GTU_RX_PIN goes to the TX pin on the GTU)
-//HardwareSerial poopSerial = HardwareSerial(0,1);
 #define GPS_SERIAL_PORT serial1
 #define GPS_BAUD_RATE   9600
 
+// bus pins
+#define SPI1_MOSI 30
+#define SPI1_MISO 31
+#define SPI1_SCK  29
+#define SPI2_MOSI 90
+#define SPI2_MISO 88
+#define SPI2_SCK  89
+#define SPI3_MOSI 4
+#define SPI3_MISO 5
+#define SPI3_SCK  1
+#define SPI4_MOSI 17
+#define SPI4_MISO 16
+#define SPI4_SCK  46
+
+#define I2C1_SDA 60
+#define I2C1_SCL 59
+
+#define SERIAL1_RX 23
+#define SERIAL1_TX 22
+
 // SPI bus for BMP388, default SPI bus (shared)
-// SPIClass SPI_1 = SPIClass(10,2,3);
-#define BMI_SPI_BUS  spi1
-//#define BMP_SPI_BUS  spi1
-#define MS_I2C_BUS   Wire
-#define ADXL_SPI_BUS spi2
-#define ICM_SPI_BUS  spi1
-#define LSM_I2C_BUS  Wire
-#define LIS_I2C_BUS  Wire
-
-
-#define LIS_CS   38
-
+#define BMI_I2C_BUS  i2c1
+#define MS5_SPI_BUS  spi2
+#define ADXL_SPI_BUS spi4
+#define LSM_SPI_BUS  spi3
+#define LIS_SPI_BUS  spi1
 
 // SPI chip select pins
 //#define BMP_CS  0 // CS
-#define MS_I2C_ADDR 0x76 // 0x76 to connect to vdd, 0x77 to connect to gnd
+#define BMI_ACC_I2C_ADDR 0x18
+#define BMI_GYR_I2C_ADDR 0x68
+#define LSM_CS  67
 #define ADXL_CS 10
-#define ICM_CS  38
-#define LSM_I2C_ADDR 106U
-#define BMI_ACCEL_CS 14
-#define BMI_GYRO_CS  5
-
+#define LIS_CS  38
+#define MS5_CS  68
 
 // LED pins (not implemented)
 #define ONBOARD_LED_PIN 13
@@ -92,7 +107,7 @@
 // Chip IDs for checking connectivity
 #define BNO_CHIP_ID  0xA0
 //#define BMP_CHIP_ID  0x60
-#define MS_DEVICE_ID 0x00 // ms5611 doesnt have chip id so not implemented yet cuz it requires calculations
+#define MS5_DEVICE_ID 0x00 // ms5611 doesnt have chip id so not implemented yet cuz it requires calculations
 #define ADXL_CHIP_ID 0xE5
 #define LSM_CHIP_ID  0x6C
 #define BMI_ACCEL_CHIP_ID 0x1E
@@ -100,6 +115,7 @@
 
 // Define bit offsets for status bitmap
 #define ICM_STATUS_OFFSET  0
+
 //#define BMP_STATUS_OFFSET  1 
 #define ADXL_STATUS_OFFSET 1
 #define LSM_STATUS_OFFSET  2
@@ -111,7 +127,6 @@
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Preprocessor directoves for EXPORT
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//#include <SD.h> 
 #include "RingBuf.h"
 #include "SdFat.h"
 
@@ -189,22 +204,25 @@ class Shart {
     void updateStatusMS5611();
     void setStatusByte();
 
-    SPIClass spi1 = SPIClass(10,2,3);
-    SPIClass spi2 = SPIClass(1,2,3);
-    HardwareSerial serial1 = HardwareSerial(0,1);
-    HardwareSerial serial2 = HardwareSerial(0,1);
+    SPIClass spi1 = SPIClass(SPI1_MOSI, SPI1_MISO, SPI1_SCK);
+    SPIClass spi2 = SPIClass(SPI2_MOSI, SPI2_MISO, SPI2_SCK); //mosi, miso, clk
+    SPIClass spi3 = SPIClass(SPI3_MOSI, SPI3_MISO, SPI3_SCK);
+    SPIClass spi4 = SPIClass(SPI4_MOSI, SPI4_MISO, SPI4_SCK);
+    HardwareSerial serial1 = HardwareSerial(SERIAL1_RX,SERIAL1_TX); // rx, tx
+    HardwareSerial serial2 = HardwareSerial(SERIAL1_RX,SERIAL1_TX);
+    TwoWire i2c1 = TwoWire(I2C1_SDA, I2C1_SCL); // sda, scl
 
     // Sensor objects from respective libraries
     UbloxGps<NavPvtPacket> gps  = UbloxGps<NavPvtPacket>(serial1);
     //Adafruit_BMP3XX        bmp  = Adafruit_BMP3XX();
-    Adafruit_ADXL375       adxl = Adafruit_ADXL375(ADXL_CS, &spi1);
+    Adafruit_ADXL375       adxl = Adafruit_ADXL375(ADXL_CS, &ADXL_SPI_BUS);
     //TeensyICM20948         icm  = TeensyICM20948(ICM_CS, &ICM_SPI_BUS);
     Adafruit_LSM6DSO32     lsm  = Adafruit_LSM6DSO32();
     Adafruit_LIS3MDL       lis  = Adafruit_LIS3MDL();
-    Bmi088Accel      bmi_accel  = Bmi088Accel(spi1, BMI_ACCEL_CS);
-    Bmi088Gyro       bmi_gyro   = Bmi088Gyro(spi1, BMI_GYRO_CS);
+    Bmi088Accel      bmi_accel  = Bmi088Accel(BMI_I2C_BUS, BMI_ACC_I2C_ADDR);
+    Bmi088Gyro       bmi_gyro   = Bmi088Gyro(BMI_I2C_BUS, BMI_GYR_I2C_ADDR);
 
-    MS5611                  ms  = MS5611(MS5611_DEFAULT_ADDRESS, &MS_I2C_BUS);
+    MS5611_SPI             ms5  = MS5611_SPI(MS5_CS, &MS5_SPI_BUS);
 
     // Component statuses, note: We only care about components that need to be initialized! 
     //Status BMPStatus  = UNINITIALIZED;
@@ -212,7 +230,6 @@ class Shart {
     Status ADXLStatus = UNINITIALIZED;
     Status LSMStatus  = UNINITIALIZED;
     Status BMIStatus  = UNINITIALIZED;
-
     Status MSStatus   = UNINITIALIZED;
 
     uint32_t chipTimeOffset;

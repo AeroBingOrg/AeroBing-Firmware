@@ -33,7 +33,8 @@
 //
 void Shart::initLSM6DSO32() {
 
-  if (!lsm.begin_I2C(LSM_I2C_ADDR, &LSM_I2C_BUS)) {
+  //if (!lsm.begin_I2C(LSM_I2C_ADDR, &LSM_I2C_BUS)) {
+  if (!lsm.begin_SPI(LSM_CS, &LSM_SPI_BUS)) {
     UPDATE_STATUS(ICMStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
     ERROR("LSM initialization failed!", MAIN_SERIAL_PORT)
     return;
@@ -60,9 +61,7 @@ void Shart::initLSM6DSO32() {
 
 // }
 void Shart::initLIS3MDL() {
-  if (!lis.begin_I2C(LIS_CS, &LIS_I2C_BUS)) {          // hardware I2C mode, can pass in address & alt Wire
-  //if (! lis3mdl.begin_SPI(LIS3MDL_CS)) {  // hardware SPI mode
-  //if (! lis3mdl.begin_SPI(LIS3MDL_CS, LIS3MDL_CLK, LIS3MDL_MISO, LIS3MDL_MOSI)) { // soft SPI
+  if (!lis.begin_SPI(LIS_CS, &LIS_SPI_BUS)) {          // hardware I2C mode, can pass in address & alt Wire
     /*UPDATE_STATUS(BMPStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
     ERROR("BMP initialization failed!", MAIN_SERIAL_PORT)*/
   }
@@ -129,7 +128,7 @@ void Shart::initBMI088() {
 
 void Shart::initMS5611() {
 
-  if (!ms.begin()) {
+  if (!ms5.begin()) {
     UPDATE_STATUS(MSStatus, UNINITIALIZED, MAIN_SERIAL_PORT);
     ERROR("MS initialization failed!", MAIN_SERIAL_PORT);
     return;
@@ -208,7 +207,7 @@ void Shart::updateStatusBMI088() {
 
 void Shart::updateStatusMS5611() {
   
-  if (ms.getDeviceID() != MS_DEVICE_ID) {
+  if (ms5.getDeviceID() != MS5_DEVICE_ID) {
     UPDATE_STATUS(MSStatus, UNAVAILABLE, MAIN_SERIAL_PORT);
     ERROR("MS not found!", MAIN_SERIAL_PORT);
     return;
@@ -318,8 +317,8 @@ void Shart::collectDataBMI088() {
 
 void Shart::collectDataMS5611() {
 
-  ms.read();
-  sensor_packet.data.temp = ms.getTemperature();
-  sensor_packet.data.pres = ms.getPressurePascal(); //in Pa
+  ms5.read();
+  sensor_packet.data.temp = ms5.getTemperature();
+  sensor_packet.data.pres = ms5.getPressurePascal(); //in Pa
   
 }

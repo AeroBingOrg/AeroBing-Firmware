@@ -1,15 +1,14 @@
 #pragma once
 //
-//    FILE: MS5611.h
+//    FILE: MS5611_SPI.h
 //  AUTHOR: Rob Tillaart
-//          Erni - testing/fixes
-// VERSION: 0.5.1
-// PURPOSE: Arduino library for MS5611 (I2C) temperature and pressure sensor
-//     URL: https://github.com/RobTillaart/MS5611
+// VERSION: 0.4.1
+// PURPOSE: Arduino library for MS5611 (SPI) temperature and pressure sensor
+//     URL: https://github.com/RobTillaart/MS5611_SPI
 
 
 #include "Arduino.h"
-#include "Wire.h"
+#include "SPI.h"
 
 
 //  BREAKOUT  MS5611  aka  GY63 - see datasheet
@@ -31,15 +30,22 @@
 //  CS to GND  ==>  0x77
 
 
-#define MS5611_LIB_VERSION                    (F("0.5.1"))
+#define MS5611_SPI_LIB_VERSION                (F("0.4.1 EXPERIMENTAL"))
 
-#ifndef MS5611_DEFAULT_ADDRESS
-#define MS5611_DEFAULT_ADDRESS                0x77
+#ifndef __SPI_CLASS__
+  //  MBED must be tested before RP2040
+  #if defined(ARDUINO_ARCH_MBED)
+  #define __SPI_CLASS__   SPIClass
+  #elif defined(ARDUINO_ARCH_RP2040)
+  #define __SPI_CLASS__   SPIClassRP2040
+  #else
+  #define __SPI_CLASS__   SPIClass
+  #endif
 #endif
 
 
 #define MS5611_READ_OK                        0
-#define MS5611_ERROR_2                        2         //  low level I2C error
+#define MS5611_ERROR_2                        2         //  TODO ??
 #define MS5611_NOT_READ                       -999
 
 
@@ -53,14 +59,16 @@ enum osr_t
 };
 
 
-class MS5611
+class MS5611_SPI
 {
 public:
-  explicit MS5611(uint8_t deviceAddress = MS5611_DEFAULT_ADDRESS, TwoWire *wire = &Wire);
+  //       HARDWARE SPI
+  explicit MS5611_SPI(uint8_t select, __SPI_CLASS__ * mySPI = &SPI);
+  //       SOFTWARE SPI
+  explicit MS5611_SPI(uint8_t select, uint8_t dataOut, uint8_t dataIn, uint8_t clock);
 
   bool     begin();
   bool     isConnected();
-  uint8_t  getAddress() { return _address; };
 
   //       reset command + get constants
   //       mathMode = 0 (default), 1 = factor 2 fix.
@@ -134,8 +142,17 @@ public:
   //  develop functions.
   /*
   void     setAddress(uint8_t address) { _address = address; };  // RANGE CHECK
+  uint8_t  getAddress() const          { return _address; };
   uint8_t  detectAddress() { todo };  // works with only one on the bus?
   */
+
+
+  //       speed in Hz
+  void     setSPIspeed(uint32_t speed);
+  uint32_t getSPIspeed();
+
+  //  debugging
+  bool     usesHWSPI();
 
 
 protected:
@@ -157,7 +174,16 @@ protected:
   uint32_t _deviceID;
   bool     _compensation;
 
-  TwoWire * _wire;
+  uint8_t  _select;
+  uint8_t  _dataIn;
+  uint8_t  _dataOut;
+  uint8_t  _clock;
+  bool     _hwSPI;
+  uint32_t _SPIspeed = 1000000;
+  uint8_t   swSPI_transfer(uint8_t value);
+
+  __SPI_CLASS__ * _mySPI;
+  SPISettings   _spi_settings;
 };
 
 
@@ -166,14 +192,7 @@ protected:
 //
 //  DERIVED CLASSES
 //
-class MS5607 : public MS5611
-{
-public:
-  MS5607(uint8_t deviceAddress, TwoWire *wire = &Wire);
-
-  bool begin();  //  to set MathMode correctly
-};
+//  class MS5607_SPI : public MS5611_SPI  ??
 
 
 //  -- END OF FILE --
-
