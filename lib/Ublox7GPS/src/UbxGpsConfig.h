@@ -29,12 +29,12 @@ const long gpsPossibleBaudrates[] = {
     // 4800,
 };
 
-template <class GpsSerial = HardwareSerial, class LogSerial = HardwareSerial>
 class UbxGpsConfig
 {
 private:
-    GpsSerial &gpsSerial;
-    LogSerial &logSerial;
+    HardwareSerial *gpsSerial;
+    USBSerial *logSerial = NULL;
+    boolean logging;
 
     unsigned long baudrate;
     UbxGpsConfigMessage message;
@@ -43,20 +43,21 @@ private:
     // Print a packet to the log serial port in a hexadecimal form.
     void printPacket(byte *packet, byte len)
     {
+        if (logSerial == NULL) return;
         char temp[3];
 
         for (byte i = 0; i < len; i++)
         {
             sprintf(temp, "%.2X", packet[i]);
-            logSerial.print(temp);
+            logSerial->print(temp);
 
             if (i != len - 1)
             {
-                logSerial.print(' ');
+                logSerial->print(' ');
             }
         }
 
-        logSerial.println();
+        logSerial->println();
     }
 
     // Send a packet to the GPS receiver.
@@ -64,7 +65,7 @@ private:
     {
         for (byte i = 0; i < len; i++)
         {
-            gpsSerial.write(packet[i]);
+            gpsSerial->write(packet[i]);
         }
 
         printPacket(packet, len);
@@ -281,11 +282,15 @@ private:
     }
 
 public:
-    UbxGpsConfig(GpsSerial &gpsSerial, LogSerial &logSerial) : gpsSerial(gpsSerial),
-                                                               logSerial(logSerial)
+    UbxGpsConfig(HardwareSerial *gpsSerial, USBSerial *logSerial) : gpsSerial(gpsSerial), logSerial(logSerial)
     {
-        //
+        logging = true;
     }
+
+    UbxGpsConfig(HardwareSerial *gpsSerial) : gpsSerial(gpsSerial) {
+        logging = false;
+    }
+    
 
     // The target buadrate at the moment can be 9600 (not changed after defaults) or 115200 (changed by the
     // `changeBaudrate()` function with a special message).
@@ -318,10 +323,10 @@ public:
             if (i != 0)
             {
                 delay(100); // Little delay before the flush.
-                gpsSerial.flush();
+                gpsSerial->flush();
             }
 
-            gpsSerial.begin(gpsPossibleBaudrates[i]);
+            gpsSerial->begin(gpsPossibleBaudrates[i]);
             restoreDefaults();
         }
 
@@ -333,8 +338,8 @@ public:
             //logSerial.println("...");
 
             delay(100); // Little delay before the flush.
-            gpsSerial.flush();
-            gpsSerial.begin(GPS_DEFAULT_BAUDRATE);
+            gpsSerial->flush();
+            gpsSerial->begin(GPS_DEFAULT_BAUDRATE);
         }
 
         // Disable NMEA messages by sending appropriate packets.
@@ -351,8 +356,8 @@ public:
             changeBaudrate();
 
             delay(100); // Little delay before the flush.
-            gpsSerial.flush();
-            gpsSerial.begin(baudrate);
+            gpsSerial->flush();
+            gpsSerial->begin(baudrate);
         }
 
         if (rate == 100)
@@ -375,12 +380,12 @@ public:
         //logSerial.println("Auto-configuration is complete!");
 
         delay(100); // Little delay before the flush.
-        gpsSerial.flush();
+        gpsSerial->flush();
     }
 
     ~UbxGpsConfig()
     {
-        gpsSerial.end();
+        gpsSerial->end();
     }
 };
 

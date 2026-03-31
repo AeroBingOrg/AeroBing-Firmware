@@ -37,8 +37,8 @@
 #define SHART_H
 
 // see WSerial.h may have to defien USBCON or USBD_USE_CDC
-#define USBCON
-#define USBD_USE_CDC
+//#define USBCON
+//#define USBD_USE_CDC
  
 #include "shart/util/status_enums.h"
 #include "shart/util/debug.h"
