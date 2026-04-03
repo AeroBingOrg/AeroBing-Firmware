@@ -129,7 +129,7 @@ struct command_p : public packet_base {
 // this assumes the packet passed in is initialized with correct type, i.e. correct size
 // templated to use any packet type an either usb or harware serial
 // TURN THIS INTO MACRO, ALSO CONSIDER PACKET POINTER TYPE OOPSIE
-
+//why tf is this a macro
 #define RECEIVE_PACKET(p, serial, result) \
 {\
     int packet_size = sizeof(p); \

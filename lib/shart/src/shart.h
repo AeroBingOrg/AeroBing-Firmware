@@ -46,9 +46,7 @@
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Preprocessor directives for SENSOR and GPS
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#include <Adafruit_BMP3XX.h>
 #include <Adafruit_ADXL375.h>
-//#include <Teensy-ICM-20948.h>
 #include <Adafruit_LIS3MDL.h>
 #include <Adafruit_LSM6DSO32.h>
 #include <UbloxGPS.h>
@@ -105,18 +103,15 @@
 #define SD_LED_PIN 20
 
 // Chip IDs for checking connectivity
-#define BNO_CHIP_ID  0xA0
-//#define BMP_CHIP_ID  0x60
-#define MS5_DEVICE_ID 0x00 // ms5611 doesnt have chip id so not implemented yet cuz it requires calculations
-#define ADXL_CHIP_ID 0xE5
-#define LSM_CHIP_ID  0x6C
+#define BNO_CHIP_ID       0xA0
+#define MS5_DEVICE_ID     0x00 // ms5611 doesnt have chip id so not implemented yet cuz it requires calculations
+#define ADXL_CHIP_ID      0xE5
+#define LSM_CHIP_ID       0x6C
 #define BMI_ACCEL_CHIP_ID 0x1E
 #define BMI_GYRO_CHIP_ID  0x0F
 
 // Define bit offsets for status bitmap
-#define ICM_STATUS_OFFSET  0
-
-//#define BMP_STATUS_OFFSET  1 
+#define LIS_STATUS_OFFSET  0
 #define ADXL_STATUS_OFFSET 1
 #define LSM_STATUS_OFFSET  2
 #define SD_STATUS_OFFSET   3
@@ -214,19 +209,16 @@ class Shart {
 
     // Sensor objects from respective libraries
     UbloxGps<NavPvtPacket> gps  = UbloxGps<NavPvtPacket>(serial1);
-    //Adafruit_BMP3XX        bmp  = Adafruit_BMP3XX();
     Adafruit_ADXL375       adxl = Adafruit_ADXL375(ADXL_CS, &ADXL_SPI_BUS);
-    //TeensyICM20948         icm  = TeensyICM20948(ICM_CS, &ICM_SPI_BUS);
     Adafruit_LSM6DSO32     lsm  = Adafruit_LSM6DSO32();
     Adafruit_LIS3MDL       lis  = Adafruit_LIS3MDL();
     Bmi088Accel      bmi_accel  = Bmi088Accel(BMI_I2C_BUS, BMI_ACC_I2C_ADDR);
     Bmi088Gyro       bmi_gyro   = Bmi088Gyro(BMI_I2C_BUS, BMI_GYR_I2C_ADDR);
-
     MS5611_SPI             ms5  = MS5611_SPI(MS5_CS, &MS5_SPI_BUS);
 
     // Component statuses, note: We only care about components that need to be initialized! 
     //Status BMPStatus  = UNINITIALIZED;
-    Status ICMStatus  = UNINITIALIZED;
+    Status LISStatus  = UNINITIALIZED;
     Status ADXLStatus = UNINITIALIZED;
     Status LSMStatus  = UNINITIALIZED;
     Status BMIStatus  = UNINITIALIZED;

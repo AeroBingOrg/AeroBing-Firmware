@@ -33,9 +33,8 @@
 //
 void Shart::initLSM6DSO32() {
 
-  //if (!lsm.begin_I2C(LSM_I2C_ADDR, &LSM_I2C_BUS)) {
   if (!lsm.begin_SPI(LSM_CS, &LSM_SPI_BUS)) {
-    UPDATE_STATUS(ICMStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
+    UPDATE_STATUS(LSMStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
     ERROR("LSM initialization failed!", MAIN_SERIAL_PORT)
     return;
   }
@@ -46,24 +45,13 @@ void Shart::initLSM6DSO32() {
   lsm.setGyroDataRate(LSM6DS_RATE_208_HZ);
 
   UPDATE_STATUS(LSMStatus, AVAILABLE, MAIN_SERIAL_PORT)
+
 }
 
-// void Shart::initICM20948() {
-
-//   icm20948_instance = 0;
-  
-//   if (!icm.init()) {
-//     UPDATE_STATUS(ICMStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
-//     ERROR("ICM initialization failed!", MAIN_SERIAL_PORT)
-//     return;
-//   }
-//   UPDATE_STATUS(ICMStatus, AVAILABLE, MAIN_SERIAL_PORT)
-
-// }
 void Shart::initLIS3MDL() {
   if (!lis.begin_SPI(LIS_CS, &LIS_SPI_BUS)) {          // hardware I2C mode, can pass in address & alt Wire
-    /*UPDATE_STATUS(BMPStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
-    ERROR("BMP initialization failed!", MAIN_SERIAL_PORT)*/
+    UPDATE_STATUS(LISStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
+    ERROR("LIS Initialization failed!", MAIN_SERIAL_PORT)
   }
   lis.setPerformanceMode(LIS3MDL_MEDIUMMODE);
   lis.setOperationMode(LIS3MDL_CONTINUOUSMODE);
@@ -74,32 +62,8 @@ void Shart::initLIS3MDL() {
                           true, // polarity
                           false, // don't latch
                           true); // enabled!
-  //UPDATE_STATUS(BMPStatus, AVAILABLE, MAIN_SERIAL_PORT)
+  UPDATE_STATUS(LISStatus, AVAILABLE, MAIN_SERIAL_PORT)
 }
-
-// Initialize the BMP SPI connection
-// TODO: consider power cycling to avoid issues with clock synchronization
-/* void Shart::initBMP388() {
-
-  // Initialize in hardware SPI mode
-  //delay(100);
-  //if (!bmp.begin_SPI(BMP_CS, BMP_SCK, BMP_MISO, BMP_MOSI)) {
-  if (!bmp.begin_SPI(BMP_CS, &BMP_SPI_BUS)) {
-    UPDATE_STATUS(BMPStatus, UNINITIALIZED, MAIN_SERIAL_PORT)
-    ERROR("BMP initialization failed!", MAIN_SERIAL_PORT)
-    return;
-  } 
-
-  // Turn off oversampling, instead just take data at 200Hz (we can process noise later)
-  //bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
-  //bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
-  bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
-  bmp.setOutputDataRate(BMP3_ODR_200_HZ);
-
-  UPDATE_STATUS(BMPStatus, AVAILABLE, MAIN_SERIAL_PORT)
-
-} */
-
 
 // ADXL375 range is fixed at +/-200G
 // TODO: maybe try power cycling here: clock synchonization gets messed up sometimes if SCL gets unplugged
@@ -124,6 +88,7 @@ void Shart::initBMI088() {
   }
 
   UPDATE_STATUS(BMIStatus, AVAILABLE, MAIN_SERIAL_PORT);
+
 }
 
 void Shart::initMS5611() {
@@ -145,18 +110,6 @@ void Shart::initMS5611() {
 *
 *******************************************************************************/
 
-/* void Shart::updateStatusBMP388() {
-
-  // The chipID() function has been modified to ACTUALLY read the chip_id register
-  if (bmp.chipID() != BMP_CHIP_ID) {
-    UPDATE_STATUS(BMPStatus, UNAVAILABLE, MAIN_SERIAL_PORT)
-    ERROR("BMP not found!", MAIN_SERIAL_PORT)
-    return;
-  }
-
-  UPDATE_STATUS(BMPStatus, AVAILABLE, MAIN_SERIAL_PORT);
-} */
-
 // See if icm is connected (under the covers, checks device id)
 void Shart::updateStatusLIS3MDL() {
   
@@ -166,7 +119,7 @@ void Shart::updateStatusLIS3MDL() {
   //   return;
   // }
 
-  UPDATE_STATUS(ICMStatus, AVAILABLE, MAIN_SERIAL_PORT)
+  UPDATE_STATUS(LISStatus, AVAILABLE, MAIN_SERIAL_PORT)
   
 }
 
@@ -255,32 +208,6 @@ void Shart::collectDataLSM6DSO32(){
   
 }
 
-// // collect data from the ICM w/ modified ZaneL's library
-// void Shart::collectDataICM20948() {
-
-//   // float gyro_x, gyro_y, gyro_z;
-//   // float accel_x, accel_y, accel_z;
-//   float mag_x, mag_y, mag_z;
-
-//   // we don't wait for mag here because it only comes at 70Hz (we can oversample)
-//   //while (!icm.accelDataIsReady()||!icm.gyroDataIsReady())//||!icm.magDataIsReady())
-//   icm.task();
-
-//   // icm.readGyroData(&gyro_x, &gyro_y, &gyro_z);
-//   // icm.readAccelData(&accel_x, &accel_y, &accel_z);
-//   icm.readMagData(&mag_x, &mag_y, &mag_z);
- 
-//   // sensor_packet.data.acc_x = accel_x;
-//   // sensor_packet.data.acc_y = accel_y;
-//   // sensor_packet.data.acc_z = accel_z;
-//   // sensor_packet.data.gyr_x = gyro_x;
-//   // sensor_packet.data.gyr_y = gyro_y;
-//   // sensor_packet.data.gyr_z = gyro_z;
-//   sensor_packet.data.mag_x = mag_x;
-//   sensor_packet.data.mag_y = mag_y;
-//   sensor_packet.data.mag_z = mag_z;
-  
-// }
 void Shart::collectDataLIS3MDL() {
   lis.read();
   sensors_event_t event; 
@@ -290,28 +217,17 @@ void Shart::collectDataLIS3MDL() {
   sensor_packet.data.mag_z = event.magnetic.z;
 }
 
-// collect data from the BMP388 over SPI
-// VERY IMPORTANT: "the_sensor.settings.op_mode = BMP3_MODE_NORMAL" in begin_SPI in Adafruit_BMP3XX.cpp or else very slow
-/* void Shart::collectDataBMP388() {
-
-  // take temperature and pressure, ignore altitude estimate to avoid expensive calculations
-  bmp.performReading();
-  sensor_packet.data.temp = bmp.temperature; // in *C
-  sensor_packet.data.pres = bmp.pressure; // in HPa
-
-} */
-
 void Shart::collectDataBMI088() {
 
   bmi_accel.readSensor();
-  sensor_packet.data.acc_x = bmi_accel.getAccelX_mss();
-  sensor_packet.data.acc_y = bmi_accel.getAccelY_mss();
-  sensor_packet.data.acc_z = bmi_accel.getAccelZ_mss();
+  // sensor_packet.data.acc_x = bmi_accel.getAccelX_mss();
+  // sensor_packet.data.acc_y = bmi_accel.getAccelY_mss();
+  // sensor_packet.data.acc_z = bmi_accel.getAccelZ_mss();
 
   bmi_gyro.readSensor();
-  sensor_packet.data.gyr_x = bmi_gyro.getGyroX_rads();
-  sensor_packet.data.gyr_y = bmi_gyro.getGyroY_rads();
-  sensor_packet.data.gyr_z = bmi_gyro.getGyroZ_rads(); 
+  // sensor_packet.data.gyr_x = bmi_gyro.getGyroX_rads();
+  // sensor_packet.data.gyr_y = bmi_gyro.getGyroY_rads();
+  // sensor_packet.data.gyr_z = bmi_gyro.getGyroZ_rads(); 
 
 }
 

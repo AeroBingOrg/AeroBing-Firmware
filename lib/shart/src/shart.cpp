@@ -15,9 +15,8 @@ void Shart::init() {
   initSD();
   
   // initialize sensors
-  //initICM20948();
   initLSM6DSO32();
-  //initBMP388();
+  initLIS3MDL();
   initADXL375();
   initBMI088();
   initMS5611();
@@ -50,9 +49,8 @@ void Shart::collect() {
   collectTime();
 
   // Only collect data when sensors are marked as AVAILABLE
-  //updateStatusICM20948();  if (ICMStatus  == AVAILABLE) collectDataICM20948();
-  //updateStatusBMP388();    if (BMPStatus  == AVAILABLE) collectDataBMP388();
   updateStatusADXL375();   if (ADXLStatus == AVAILABLE) collectDataADXL375();
+  updateStatusLIS3MDL();   if (LISStatus == AVAILABLE)  collectDataLIS3MDL();
   updateStatusLSM6DSO32(); if (LSMStatus  == AVAILABLE) collectDataLSM6DSO32();
   updateStatusBMI088();    if (BMIStatus == AVAILABLE)  collectDataBMI088();
   updateStatusMS5611();    if (MSStatus == AVAILABLE)   collectDataMS5611();
@@ -125,7 +123,7 @@ bool Shart::getSystemStatus() {
 
 	return (
     //BMPStatus  == AVAILABLE &&
-		ICMStatus  == AVAILABLE &&
+		LISStatus  == AVAILABLE &&
 		ADXLStatus == AVAILABLE &&
     BMIStatus  == AVAILABLE &&
     MSStatus   == AVAILABLE &&
@@ -135,9 +133,9 @@ bool Shart::getSystemStatus() {
 
 // fill the status byte in the sensor packet. each bit set to 1 if component good, otherwise 0
 void Shart::setStatusByte() {
+
   sensor_packet.data.status = 0;
-  sensor_packet.data.status |= (ICMStatus == AVAILABLE)  << ICM_STATUS_OFFSET;
-  //sensor_packet.data.status |= (BMPStatus == AVAILABLE)  << BMP_STATUS_OFFSET;
+  sensor_packet.data.status |= (LISStatus == AVAILABLE)  << LIS_STATUS_OFFSET;
   sensor_packet.data.status |= (ADXLStatus == AVAILABLE) << ADXL_STATUS_OFFSET;
   sensor_packet.data.status |= (LSMStatus == AVAILABLE)  << LSM_STATUS_OFFSET;
   sensor_packet.data.status |= (SDStatus == AVAILABLE)   << SD_STATUS_OFFSET;
@@ -145,6 +143,7 @@ void Shart::setStatusByte() {
   sensor_packet.data.status |= (MSStatus == AVAILABLE)   << MS_STATUS_OFFSET;
   sensor_packet.data.status |= (analogRead(41) > 712) << PYRO_STATUS_OFFSET;
   sensor_packet.data.reserved = sd_file_opened;
+  
 }
 
 // Initializes Teensy 4.1 pins
