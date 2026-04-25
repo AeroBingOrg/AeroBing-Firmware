@@ -20,7 +20,7 @@
 #define LOG_FILE_SIZE 10 * 25000 * 600  // 150,000,000 bytes.
 
 // Space to hold more than 800 ms of data for 10 byte lines at 25 ksps.
-#define RING_BUF_CAPACITY 400 * 512
+#define RING_BUF_CAPACITY 400 * 512 // this is what's causing the memory overflow, but when shart actually runs i dont think it will be an issue cuz there will be enough memory for it (should try to confirm)
 #define LOG_FILENAME "SdioLogger.csv"
 
 SdFs sd;

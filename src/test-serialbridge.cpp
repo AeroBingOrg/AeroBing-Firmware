@@ -3,6 +3,8 @@
 #define COMPUTER_BAUDRATE 9600
 #define GPS_BAUDRATE 115200//9600
 
+HardwareSerial Serial2(PA1,PA0);
+
 void setup()
 {
     Serial.begin(COMPUTER_BAUDRATE);
