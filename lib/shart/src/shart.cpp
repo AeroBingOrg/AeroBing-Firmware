@@ -45,7 +45,7 @@ void Shart::awaitStart() {
 
 void Shart::collect() {
 
-  // Get time since program start in us
+  // Get time since program start in microseconds (us)
   collectTime();
 
   // Only collect data when sensors are marked as AVAILABLE

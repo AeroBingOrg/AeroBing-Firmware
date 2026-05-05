@@ -87,7 +87,7 @@
 #define LIS_SPI_BUS  spi1
 
 // SPI chip select pins
-//#define BMP_CS  0 // CS
+//#define BMP_CS 0
 #define BMI_ACC_I2C_ADDR 0x18
 #define BMI_GYR_I2C_ADDR 0x68
 #define LSM_CS  67
@@ -104,7 +104,6 @@
 
 // Chip IDs for checking connectivity
 #define BNO_CHIP_ID       0xA0
-#define MS5_DEVICE_ID     0x00 // ms5611 doesnt have chip id so not implemented yet cuz it requires calculations
 #define ADXL_CHIP_ID      0xE5
 #define LSM_CHIP_ID       0x6C
 #define BMI_ACCEL_CHIP_ID 0x1E
@@ -178,7 +177,7 @@ class Shart {
     void initBMI088();
     void initMS5611();
 
-    // individual sensor collectors
+    // individual sensor data collectors
     //void collectDataICM20948();
     void collectDataLIS3MDL();
     void collectDataLSM6DSO32();

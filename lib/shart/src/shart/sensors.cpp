@@ -30,7 +30,7 @@
 *******************************************************************************/
 
 
-//
+
 void Shart::initLSM6DSO32() {
 
   if (!lsm.begin_SPI(LSM_CS, &LSM_SPI_BUS)) {
@@ -160,9 +160,14 @@ void Shart::updateStatusBMI088() {
 
 void Shart::updateStatusMS5611() {
   
-  if (ms5.getDeviceID() != MS5_DEVICE_ID) {
+  //probably gonna change this 
+  //u_int16_t c1 = ms5.getProm(1);
+  //u_int16_t c2 = ms5.getProm(2);
+
+  if (/*c1 == 0x0000 || c1 == 0xFFFF || c2 == 0x0000 || c2 == 0xFFFF && */
+      ms5.read() != MS5611_READ_OK) {
     UPDATE_STATUS(MSStatus, UNAVAILABLE, MAIN_SERIAL_PORT);
-    ERROR("MS not found!", MAIN_SERIAL_PORT);
+    ERROR("MS5611 not found!", MAIN_SERIAL_PORT);
     return;
   }
 

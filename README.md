@@ -11,7 +11,7 @@ This project contains the firmware for AeroBing's flight computer. This includes
 ## Usage
 * First install the PlatformIO extension in VSCode
 * Wait for it to configure the project
-* Run 'pio run -t upload -e [environment]' in the PlatformIO terminal to build and upload code (environments are specified in platformio.ini)
+* Run 'pio run -t upload -e [environment]' in the PlatformIO terminal to build and upload code (environments are specified in platformio.ini). If you want to purely test the code for bugs and not flash to the hardware, the -t upload part isn't necessary
 * Socket icon in top right for serial monitor
 * alt + z to make serial monitor print nicely without overflowing onto the next lines
 * That's it! Refer to other READMEs for library-specific information.
